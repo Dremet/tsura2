@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}TSURA | Home{% endblock %}
+{% block content %}
+<section class="intro mb-4">
+    <p>
+        <strong>Turbo Sliders Unlimited Racing Association (TSURA)</strong> is a community-driven initiative focused on
+        organized competitive racing in <em>Turbo Sliders Unlimited</em>. It goes beyond just this website and the data
+        processing behind it — TSURA also involves event planning, community-building, ELO-based rankings,
+        custom servers and more.
+        <br />
+        This site showcases live statistics gathered from the Event, Hotlapping and TripleHeat server.
+        For questions or bugs, please contact <strong>Dremet</strong> on Discord.
+    </p>
+</section>
+
+{% if hotlap %}
+<div class="card mb-4">
+    <div class="card-body">
+        <h2 class="card-title">Current Hotlapping Combination</h2>
+        <p><strong>Track:</strong> {{ hotlap.tr_name }}</p>
+        <p>
+            <strong>Cars:</strong>
+            {{ hotlap.cars_used | join(', ') }}
+        </p>
+        <p><strong>Since:</strong> {{ hotlap.event_start.strftime('%Y-%m-%d %H:%M') }}</p>
+        <a href="{{ url_for('main.hotlapping') }}" class="btn btn-warm-red btn-sm">See All Hotlaps</a>
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <h2 class="mb-3">Recent Races</h2>
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Track</th>
+                        <th>Participants</th>
+                        <th>Cars</th>
+                        <th>Winner</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for race in races %}
+                    <tr>
+                        <td>{{ race.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ race.track }}</td>
+                        <td>{{ race.participants }}</td>
+                        <td>
+                            {% set cars_list = race.cars.split(',') %}
+                            <span data-bs-toggle="tooltip" title="{{ race.cars }}">
+                                {{ cars_list[0] }}{% if cars_list|length > 1 %} +{{ cars_list|length - 1 }} more{% endif
+                                %}
+                            </span>
+                        </td>
+                        <td>{{ race.winner }}</td>
+                        <td>
+                            <a href="{{ url_for('main.event_detail', event_id=race.e_id) }}"
+                                class="btn btn-warm-red btn-sm">
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <h2 class="mb-3">Current Servers</h2>
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Players</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for srv in servers %}
+                    <tr>
+                        <td>{{ srv.name }}</td>
+                        <td>
+                            {{ srv.players }}/{{ srv.max_players }}
+                            {% if srv.secure %}&#128274;{% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="2">No servers online</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

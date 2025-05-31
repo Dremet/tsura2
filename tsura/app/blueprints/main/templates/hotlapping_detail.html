@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}TSURA | Hotlapping {{ event_number }}{% endblock %}
+{% block content %}
+
+<!-- Theoretical best lap card ----------------------------------------- -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h4 class="card-title mb-2">Optimal Theoretical Lap</h4>
+        <p class="mb-1">
+            <strong>{{ opt_lap }}</strong>
+            <small class="text-success">{{ opt_diff }}</small>
+        </p>
+        <p class="mb-0">
+            {% for t in best_sector_fmt %}
+            S{{ loop.index }}: {{ t }} ({{ best_sector_driver[loop.index0] }}){% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </p>
+    </div>
+</div>
+
+<!-- Best laps per driver ---------------------------------------------- -->
+<h3 class="mb-2">Best Lap per Driver</h3>
+<div class="table-responsive mb-4">
+    <table class="table table-dark table-hover align-middle">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Driver</th>
+                <th>Car</th>
+                <th>Best&nbsp;Lap</th>
+                <th>Diff.</th>
+                <th data-bs-toggle="tooltip" title="✓ = 5 laps within 1 % ★ = 5 laps within 0.2 %">Cons.</th>
+                {% for i in range(n_sectors) %}
+                <th>S{{ i+1 }}</th>
+                {% endfor %}
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in best %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>
+                    <a href="{{ url_for('main.driver_profile', driver_id=r.driver_id) }}">
+                        {{ r.driver }}
+                    </a>
+                </td>
+                <td>{{ r.car }}</td>
+                <td {% if r.lap==fastest_lap %}class="sector-best" {% endif %}>{{ r.lap }}</td>
+                <td class="text-danger">{{ r.diff }}</td>
+                <td>
+                    {% if r.very_consistent %}
+                    <span class="text-success fw-bold" title="5 laps within 0.2 %">★</span>
+                    {% elif r.consistent %}
+                    <span title="5 laps within 1 %">✓</span>
+                    {% else %}—{% endif %}
+                </td>
+                {% for s in r.sectors %}
+                <td {% if s==best_sector_fmt[loop.index0] %}class="sector-best" {% endif %}>{{ s }}</td>
+                {% endfor %}
+                <td>{{ r.ts.strftime('%d.%m. %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Top‑500 laps ------------------------------------------------------- -->
+<h3 class="mb-2">Top 500 Laps</h3>
+<div class="table-responsive">
+    <table class="table table-dark table-hover align-middle">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Driver</th>
+                <th>Car</th>
+                <th>Lap&nbsp;Time</th>
+                {% for i in range(n_sectors) %}
+                <th>S{{ i+1 }}</th>
+                {% endfor %}
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in laps %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>
+                    <a href="{{ url_for('main.driver_profile', driver_id=r.driver_id) }}">
+                        {{ r.driver }}
+                    </a>
+                </td>
+                <td>{{ r.car }}</td>
+                <td {% if r.lap==fastest_lap %}class="sector-best" {% endif %}>{{ r.lap }}</td>
+                {% for s in r.sectors %}
+                <td {% if s==best_sector_fmt[loop.index0] %}class="sector-best" {% endif %}>{{ s }}</td>
+                {% endfor %}
+                <td>{{ r.ts.strftime('%Y-%m-%d %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

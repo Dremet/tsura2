@@ -1,0 +1,95 @@
+/* --------------------------------------------------
+   Formula 1–inspired dark theme and custom fonts
+   -------------------------------------------------- */
+:root {
+    --carbon: #15151E;
+    --warm-red: #FF1E00;
+    --white: #FFFFFF;
+}
+
+/* Font faces */
+@font-face {
+    font-family: 'F1-Bold';
+    src: url('../fonts/Formula1-Bold.otf') format('opentype');
+    font-weight: 700;
+}
+
+@font-face {
+    font-family: 'F1-Regular';
+    src: url('../fonts/Formula1-Regular.otf') format('opentype');
+    font-weight: 400;
+}
+
+@font-face {
+    font-family: 'F1-Wide';
+    src: url('../fonts/Formula1-Wide.otf') format('opentype');
+    font-weight: 400;
+}
+
+body.bg-carbon {
+    background-color: var(--carbon);
+    color: var(--white);
+    font-family: 'F1-Regular', sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: 'F1-Bold', sans-serif;
+}
+
+a,
+.nav-link {
+    color: var(--white);
+}
+
+a:hover,
+.nav-link:hover {
+    color: var(--warm-red);
+}
+
+.navbar.bg-carbon {
+    background-color: var(--carbon);
+}
+
+.border-danger {
+    border-color: var(--warm-red) !important;
+}
+
+.tooltip-inner {
+    background-color: var(--warm-red);
+    color: var(--white);
+}
+
+/* Hide long car lists on very small screens */
+@media (max-width: 576px) {
+    .table td:nth-child(5) span {
+        display: none;
+    }
+}
+
+
+/* Custom button with warm‑red accents */
+.btn-warm-red {
+    border-color: var(--warm-red);
+    color: var(--warm-red);
+}
+
+.btn-warm-red:hover {
+    background-color: var(--warm-red);
+    color: var(--white);
+}
+
+body>.container-fluid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+
+/* Purple highlight for sector bests */
+.sector-best {
+    color: #b400ff !important;
+}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}TSURA | ELO Heats{% endblock %}
+{% block content %}
+
+<div class="mb-3 small">
+    <p>
+        <strong>What is Elo?</strong> &nbsp;Originally designed for chess, Elo converts results
+        into rating changes so a single number approximates skill.
+    </p>
+    <p>
+        <strong>Multi‑player adaptation.</strong> &nbsp;For each race, every driver has an
+        <em>expected finishing position</em> computed from all current ratings; the gap between
+        expectation and reality becomes an Elo gain or loss.
+    </p>
+    <p>
+        <strong>Update cycle.</strong> &nbsp;Ratings refresh automatically a few seconds after
+        a Heat‑server race. &nbsp;If you skip a race, your rating remains unchanged.
+    </p>
+    <p class="mb-0">
+        <strong>Limitations.</strong> &nbsp;Because Elo needs several data points to stabilise,
+        we list only drivers with at least <strong>three</strong> participations. Car‑specific
+        skill and other nuances are not yet separated, so treat the rating as an approximate
+        but useful indicator.
+    </p>
+</div>
+
+
+<div class="table-responsive">
+    <table class="table table-dark table-hover align-middle">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Driver</th>
+                <th>Current&nbsp;ELO</th>
+                <th data-bs-toggle="tooltip" title="ELO change from the most recent heat">Δ</th>
+                <th data-bs-toggle="tooltip" title="ELO change over the last 6 heats">Δ&nbsp;6</th>
+                <th>Heats</th>
+                <th>Last&nbsp;Heat</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in records %}
+            <tr>
+                <td>{{ loop.index }}</td>
+
+                <!-- Clickable driver -->
+                <td>
+                    <a href="{{ url_for('main.driver_profile', driver_id=r.d_d_id) }}">
+                        {{ r.d_name }}
+                    </a>
+                </td>
+
+                <!-- Numbers with one decimal place -->
+                <td>{{ "%.1f"|format(r.ee_current_elo) }}</td>
+
+                <td class="{% if r.ee_elo_delta > 0 %}text-success{% elif r.ee_elo_delta < 0 %}text-danger{% endif %}">
+                    {{ "%+.1f"|format(r.ee_elo_delta) }}
+                </td>
+
+                <td
+                    class="{% if r.ee_elo_delta_6 > 0 %}text-success{% elif r.ee_elo_delta_6 < 0 %}text-danger{% endif %}">
+                    {{ "%+.1f"|format(r.ee_elo_delta_6) }}
+                </td>
+
+                <td>{{ r.ee_participations }}</td>
+
+                <td>
+                    <a class="btn btn-warm-red btn-sm" href="{{ url_for('main.event_detail', event_id=r.e_e_id) }}">
+                        View
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

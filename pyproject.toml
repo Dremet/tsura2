@@ -1,0 +1,13 @@
+[project]
+name = "tsura2"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "flask==3.0.2",
+    "psycopg-pool==3.1.8",
+    "psycopg[binary]==3.1.18",
+    "python-dotenv==1.0.1",
+    "requests==2.32.2",
+]
