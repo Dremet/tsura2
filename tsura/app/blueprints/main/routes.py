@@ -18,9 +18,11 @@ from ...extensions import db_pool
 # Helpers                                                                #
 # ---------------------------------------------------------------------- #
 def _fmt_lap_time(seconds: float) -> str:
+    if seconds is None:
+        return "-:--.----"
     minutes = int(seconds // 60)
     rest = seconds - minutes * 60
-    return f"{minutes}:{rest:06.4f}"  # M:SS.ffff
+    return f"{minutes}:{rest:07.4f}"  # M:SS.ffff
 
 
 API_URL = (
@@ -136,6 +138,7 @@ def hotlapping_detail(event_number: int):
                 s_times                   -- ARRAY[sector times]
             FROM tsu.mart.fact_hotlapping_results_best
             WHERE h_id = %s
+            and h_diff_to_best_lap is not null
         ORDER BY h_best_lap_time desc
             """,
             (event_number,),
@@ -153,6 +156,7 @@ def hotlapping_detail(event_number: int):
                    s_times
               FROM tsu.mart.fact_hotlapping_results_all
              WHERE h_id = %s
+             and h_lap_time is not null
           ORDER BY h_lap_time
              LIMIT 500;
             """,
@@ -169,10 +173,13 @@ def hotlapping_detail(event_number: int):
 
     def check_sectors(row):
         for idx, sec_time in enumerate(row["s_times"]):
-            t = float(sec_time)
-            if t < best_sector_vals[idx]:
-                best_sector_vals[idx] = t
-                best_sector_drivers[idx] = row["d_name"]
+            try:
+                t = float(sec_time)
+                if t < best_sector_vals[idx]:
+                    best_sector_vals[idx] = t
+                    best_sector_drivers[idx] = row["d_name"]
+            except:
+                continue
 
     for r in best_rows:
         check_sectors(r)
