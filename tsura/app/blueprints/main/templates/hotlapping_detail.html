@@ -50,9 +50,9 @@
                 <td class="text-danger">{{ r.diff }}</td>
                 <td>
                     {% if r.very_consistent %}
-                    <span class="text-success fw-bold" title="5 laps within 0.2 %">★</span>
+                    <span class="text-success fw-bold fs-5" title="5 laps within 0.2 %">★</span>
                     {% elif r.consistent %}
-                    <span title="5 laps within 1 %">✓</span>
+                    <span title="5 laps within 1 %" class="fs-5">✓</span>
                     {% else %}—{% endif %}
                 </td>
                 {% for s in r.sectors %}
