@@ -3,6 +3,50 @@
 {% block content %}
 
 <h2 class="mb-3">Race Results</h2>
-<p class="text-muted">Full race results list coming soon.</p>
+
+<div class="table-responsive">
+    <table class="table table-dark table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Track</th>
+                <th>Drivers</th>
+                <th>Cars</th>
+                <th>Winner</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for race in races %}
+            <tr>
+                <td class="text-muted small">{{ race.utc_start_time.strftime('%d.%m.%y %H:%M') }}</td>
+                <td>
+                    {% if race.server == 'heats' %}
+                    <span class="badge bg-danger">TripleHeat</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Event</span>
+                    {% endif %}
+                </td>
+                <td>{{ race.track_name }}</td>
+                <td>{{ race.participant_count }}</td>
+                <td>
+                    {% if race.cars %}
+                    {% set cars_list = race.cars.split(',') %}
+                    <span data-bs-toggle="tooltip" title="{{ race.cars }}">
+                        {{ cars_list[0] | trim }}{% if cars_list|length > 1 %} +{{ cars_list|length - 1 }} more{% endif %}
+                    </span>
+                    {% else %}—{% endif %}
+                </td>
+                <td>{{ race.winner or '—' }}</td>
+                <td>
+                    <a href="{{ url_for('main.race_detail', session_id=race.session_id) }}"
+                        class="btn btn-warm-red btn-sm">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 
 {% endblock %}

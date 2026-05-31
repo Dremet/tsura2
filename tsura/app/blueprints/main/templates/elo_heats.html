@@ -30,7 +30,6 @@
             <tr>
                 <th>#</th>
                 <th>Driver</th>
-                <th>Nation</th>
                 <th>Current&nbsp;ELO</th>
                 <th data-bs-toggle="tooltip" title="ELO change from the most recent heat (coming soon)">&#916;</th>
                 <th data-bs-toggle="tooltip" title="ELO change over the last 6 heats (coming soon)">&#916;&nbsp;6</th>
@@ -47,9 +46,10 @@
                     <a href="{{ url_for('main.driver_profile', driver_id=r.steam_id) }}">
                         {{ r.driver_name }}
                     </a>
+                    {% if r.driver_flag %}
+                    <small class="text-muted ms-1">{{ r.driver_flag }}</small>
+                    {% endif %}
                 </td>
-
-                <td class="text-muted small">{{ r.driver_flag or '' }}</td>
 
                 <td>{{ "%.1f"|format(r.heat_elo) }}</td>
 

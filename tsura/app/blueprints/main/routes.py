@@ -24,6 +24,17 @@ def _fmt_lap_time(seconds: float) -> str:
     return f"{minutes}:{rest:07.4f}"  # M:SS.ffff
 
 
+def _fmt_race_time(seconds: float) -> str:
+    if seconds is None:
+        return "—"
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = seconds % 60
+    if h > 0:
+        return f"{h}:{m:02d}:{s:06.3f}"
+    return f"{m}:{s:06.3f}"  # MM:SS.fff
+
+
 API_URL = (
     "https://api.steampowered.com/IGameServersService/GetServerList/v1/"
     f"?key={os.environ.get('TSURA_STEAM_API_KEY','')}&filter=appid%5C1478340"
@@ -291,18 +302,104 @@ def elo_heats():
 
 
 # --------------------------------------------------------------------------- #
-#  RACES (list + detail -- built out in Phase 2 next step)                   #
+#  RACES LIST                                                                 #
 # --------------------------------------------------------------------------- #
 @main_bp.route("/races")
 def races():
-    """Race results list -- coming soon."""
-    return render_template("races.html")
+    """Race results list: events + heats, one row per session."""
+    conn = db_pool.get_conn()
+    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        cur.execute(
+            """
+            SELECT
+                session_id,
+                utc_start_time,
+                server,
+                track_name,
+                participant_count,
+                STRING_AGG(DISTINCT vehicle_name, ', ' ORDER BY vehicle_name) AS cars,
+                MIN(driver_name) FILTER (WHERE position = 1) AS winner
+              FROM mart.v_race_results
+             WHERE server IN ('events', 'heats')
+          GROUP BY session_id, utc_start_time, server, track_name, participant_count
+          ORDER BY utc_start_time DESC
+             LIMIT 200;
+            """
+        )
+        race_list = cur.fetchall()
+
+    return render_template("races.html", races=race_list)
 
 
+# --------------------------------------------------------------------------- #
+#  RACE DETAIL                                                                #
+# --------------------------------------------------------------------------- #
 @main_bp.route("/races/<session_id>")
 def race_detail(session_id: str):
-    """Individual race result -- coming soon."""
-    return render_template("race_detail.html", session_id=session_id)
+    """Full result table for a single race session."""
+    conn = db_pool.get_conn()
+    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        cur.execute(
+            """
+            SELECT
+                session_id,
+                utc_start_time,
+                server,
+                track_name,
+                track_type,
+                participant_count,
+                finished_state,
+                steam_id,
+                driver_name,
+                driver_flag,
+                driver_clan,
+                vehicle_name,
+                position,
+                finish_time,
+                laps_completed,
+                elo_value,
+                elo_delta,
+                current_elo
+              FROM mart.v_race_results
+             WHERE session_id = %s
+          ORDER BY position ASC NULLS LAST;
+            """,
+            (session_id,),
+        )
+        rows = cur.fetchall()
+
+    if not rows:
+        return render_template("race_detail.html", session_id=session_id,
+                               meta=None, results=[])
+
+    meta = {
+        "session_id":      rows[0]["session_id"],
+        "utc_start_time":  rows[0]["utc_start_time"],
+        "server":          rows[0]["server"],
+        "track_name":      rows[0]["track_name"],
+        "track_type":      rows[0]["track_type"],
+        "participant_count": rows[0]["participant_count"],
+        "finished_state":  rows[0]["finished_state"],
+    }
+
+    results = [
+        {
+            "position":      row["position"],
+            "driver_id":     row["steam_id"],
+            "driver_name":   row["driver_name"],
+            "driver_flag":   row["driver_flag"],
+            "driver_clan":   row["driver_clan"],
+            "vehicle":       row["vehicle_name"],
+            "finish_time":   _fmt_race_time(row["finish_time"]),
+            "laps":          row["laps_completed"],
+            "elo_value":     row["elo_value"],
+            "elo_delta":     row["elo_delta"],
+            "current_elo":   row["current_elo"],
+        }
+        for row in rows
+    ]
+
+    return render_template("race_detail.html", meta=meta, results=results)
 
 
 @main_bp.route("/driver/<driver_id>")
