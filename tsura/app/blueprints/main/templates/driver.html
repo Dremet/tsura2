@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}TSURA | {% if profile %}{{ profile.driver_name }}{% else %}Driver{% endif %}{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+{% if not profile %}
+<div class="alert alert-secondary">Driver not found.</div>
+{% else %}
+
+<!-- Header ------------------------------------------------------------- -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h3 class="card-title mb-1">
+            {{ flag_emoji }}
+            {{ profile.driver_name }}
+            {% if profile.driver_clan %}
+            <small class="text-muted fs-6 ms-2">{{ profile.driver_clan }}</small>
+            {% endif %}
+        </h3>
+        {% if profile.driver_flag and profile.driver_flag != 'None' %}
+        <p class="mb-0 text-muted small">{{ profile.driver_flag | replace('_', ' ') }}</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+
+    <!-- Tripleheat ELO card -------------------------------------------- -->
+    {% if profile.heat_elo %}
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">TripleHeat ELO</h5>
+                <p class="display-6 fw-bold text-danger mb-1">{{ "%.1f"|format(profile.heat_elo) }}</p>
+                <p class="text-muted mb-1">{{ profile.heat_total_races }} races
+                    {% if profile.heat_wins %}· {{ profile.heat_wins }} wins{% endif %}
+                </p>
+                {% if profile.heat_best_position %}
+                <p class="text-muted mb-0 small">Best finish: P{{ profile.heat_best_position }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Event stats card ----------------------------------------------- -->
+    {% if profile.event_races %}
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Event Server</h5>
+                <p class="display-6 fw-bold mb-1">{{ profile.event_races }}</p>
+                <p class="text-muted mb-0">races
+                    {% if profile.event_wins %}· {{ profile.event_wins }} wins{% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Hotlapping stats card ------------------------------------------ -->
+    {% if profile.hotlap_events %}
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Hotlapping</h5>
+                <p class="display-6 fw-bold mb-1">{{ profile.hotlap_events }}</p>
+                <p class="text-muted mb-1">sessions · {{ profile.hotlap_total_laps }} laps</p>
+                {% if profile.hotlap_alltime_best %}
+                <p class="text-muted mb-0 small">All-time best: {{ "%.4f"|format(profile.hotlap_alltime_best) }} s</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- ELO History chart -------------------------------------------------- -->
+{% if profile.heat_elo %}
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title mb-3">ELO History</h5>
+        <canvas id="eloChart" height="80"></canvas>
+    </div>
+</div>
+<script>
+(function () {
+    const raw = {{ elo_chart_json | safe }};
+    if (!raw.length) return;
+    const labels = raw.map(d => d.label);
+    const values = raw.map(d => d.elo);
+    const ctx = document.getElementById('eloChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'ELO',
+                data: values,
+                borderColor: '#dc3545',
+                backgroundColor: 'rgba(220,53,69,0.15)',
+                tension: 0.3,
+                pointRadius: raw.length > 30 ? 2 : 4,
+                fill: true,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        afterLabel: function(ctx) {
+                            const d = raw[ctx.dataIndex];
+                            const parts = [];
+                            if (d.delta != null) parts.push('Δ ' + (d.delta >= 0 ? '+' : '') + d.delta);
+                            if (d.track) parts.push(d.track);
+                            return parts;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { ticks: { color: '#aaa', maxRotation: 45 }, grid: { color: '#333' } },
+                y: { ticks: { color: '#aaa' }, grid: { color: '#333' } }
+            }
+        }
+    });
+})();
+</script>
+{% endif %}
+
+<!-- Last 10 races ------------------------------------------------------ -->
+{% if last_races %}
+<div class="card mb-4">
+    <div class="card-header"><strong>Last 10 Races</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-dark table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Track</th>
+                    <th>Pos.</th>
+                    <th>Drivers</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in last_races %}
+                <tr>
+                    <td class="text-muted small">{{ r.date }}</td>
+                    <td>
+                        {% if r.server == 'heats' %}
+                        <span class="badge bg-danger">TripleHeat</span>
+                        {% elif r.server == 'casual_heat' %}
+                        <span class="badge bg-primary">Casual-Heat</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Event</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ r.track_name }}</td>
+                    <td><strong>{{ r.position if r.position else '—' }}</strong></td>
+                    <td>{{ r.human_count }}</td>
+                    <td>
+                        <a href="{{ url_for('main.race_detail', session_id=r.session_id) }}"
+                           class="btn btn-warm-red btn-sm">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
