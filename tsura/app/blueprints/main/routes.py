@@ -33,7 +33,7 @@ API_URL = (
 
 @main_bp.route("/")
 def index():
-    """Landing page showing recent races, current hotlap combo and server status."""
+    """Landing page: recent races, current hotlap combo, server status."""
     conn = db_pool.get_conn()
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
         # recent races ---------------------------------------------------
@@ -119,7 +119,7 @@ def hotlapping():
 # --------------------------------------------------------------------------- #
 @main_bp.route("/hotlapping/<int:event_number>")
 def hotlapping_detail(event_number: int):
-    """Show best lap per driver and top‑500 laps for a given hot‑lap event."""
+    """Show best lap per driver and top-500 laps for a given hot-lap event."""
     conn = db_pool.get_conn()
 
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
@@ -127,7 +127,7 @@ def hotlapping_detail(event_number: int):
         cur.execute(
             """
             SELECT
-                d_d_id,                   -- driver id (hash)
+                d_d_id,
                 d_name,
                 v_name,
                 e_timestamp,
@@ -135,7 +135,7 @@ def hotlapping_detail(event_number: int):
                 h_diff_to_best_lap,
                 h_is_consistent,
                 h_is_very_consistent,
-                s_times                   -- ARRAY[sector times]
+                s_times
             FROM tsu.mart.fact_hotlapping_results_best
             WHERE h_id = %s
             and h_diff_to_best_lap is not null
@@ -145,7 +145,7 @@ def hotlapping_detail(event_number: int):
         )
         best_rows = cur.fetchall()
 
-        # overall top‑500 laps -----------------------------------------------
+        # overall top-500 laps -----------------------------------------------
         cur.execute(
             """
             SELECT d_d_id,
@@ -178,7 +178,7 @@ def hotlapping_detail(event_number: int):
                 if t < best_sector_vals[idx]:
                     best_sector_vals[idx] = t
                     best_sector_drivers[idx] = row["d_name"]
-            except:
+            except Exception:
                 continue
 
     for r in best_rows:
@@ -193,9 +193,6 @@ def hotlapping_detail(event_number: int):
     best_sector_fmt = [_fmt_lap_time(t) for t in best_sector_vals]
     fastest_lap_fmt = _fmt_lap_time(best_rows[0]["h_best_lap_time"])
 
-    # ------------------------------------------------------------------ #
-    # prepare context for Jinja                                          #
-    # ------------------------------------------------------------------ #
     best = [
         {
             "driver_id": row["d_d_id"],
@@ -230,9 +227,6 @@ def hotlapping_detail(event_number: int):
         for row in lap_rows
     ]
 
-    for row in best_rows:
-        print(row["d_name"], row["h_best_lap_time"])
-
     return render_template(
         "hotlapping_detail.html",
         event_number=event_number,
@@ -248,52 +242,25 @@ def hotlapping_detail(event_number: int):
 
 
 # --------------------------------------------------------------------------- #
-#  ELO EVENTS                                                                 #
-# --------------------------------------------------------------------------- #
-@main_bp.route("/elo-events")
-def elo_events():
-    """Leaderboard for ELO‑rated event races (min. 3 participations)."""
-    conn = db_pool.get_conn()
-    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-        cur.execute(
-            """
-            SELECT d_d_id,
-                   d_name,
-                   e_e_id,
-                   ee_current_elo,
-                   ee_elo_delta,
-                   ee_elo_delta_5,
-                   ee_participations
-              FROM tsu.mart.fact_elo_events
-             WHERE ee_participations >= 3
-          ORDER BY ee_current_elo DESC;
-            """
-        )
-        records = cur.fetchall()
-
-    return render_template("elo_events.html", records=records)
-
-
-# --------------------------------------------------------------------------- #
-#  ELO HEATS                                                                  #
+#  ELO HEATS                                                                  #
 # --------------------------------------------------------------------------- #
 @main_bp.route("/elo-heats")
 def elo_heats():
-    """Leaderboard for ELO‑rated heat races (min. 3 participations)."""
+    """Tripleheat ELO leaderboard (drivers with >= 3 races)."""
     conn = db_pool.get_conn()
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
         cur.execute(
             """
-            SELECT d_d_id,
-                   d_name,
-                   e_e_id,
-                   ee_current_elo,
-                   ee_elo_delta,
-                   ee_elo_delta_6,
-                   ee_participations
-              FROM tsu.mart.fact_elo_heats
-             WHERE ee_participations >= 3
-          ORDER BY ee_current_elo DESC;
+            SELECT steam_id,
+                   driver_name,
+                   driver_flag,
+                   heat_elo,
+                   heat_total_races,
+                   heat_last_race_at
+              FROM mart.v_driver_profile
+             WHERE heat_elo IS NOT NULL
+               AND heat_total_races >= 3
+          ORDER BY heat_elo DESC;
             """
         )
         records = cur.fetchall()
@@ -301,13 +268,22 @@ def elo_heats():
     return render_template("elo_heats.html", records=records)
 
 
-@main_bp.route("/events/<event_id>")
-def event_detail(event_id):
-    """Placeholder for the event‑detail view."""
-    return f"Event detail for {event_id} coming soon!", 200
+# --------------------------------------------------------------------------- #
+#  RACES (list + detail -- built out in Phase 2 steps 3+)                    #
+# --------------------------------------------------------------------------- #
+@main_bp.route("/races")
+def races():
+    """Race results list -- coming soon."""
+    return render_template("races.html")
+
+
+@main_bp.route("/races/<session_id>")
+def race_detail(session_id: str):
+    """Individual race result -- coming soon."""
+    return render_template("race_detail.html", session_id=session_id)
 
 
 @main_bp.route("/driver/<driver_id>")
 def driver_profile(driver_id: str):
-    """Placeholder page for a driver profile (hash ID)."""
-    return f"Driver profile for ID {driver_id} – coming soon!", 200
+    """Placeholder page for a driver profile."""
+    return f"Driver profile for ID {driver_id} - coming soon!", 200
