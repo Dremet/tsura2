@@ -13,65 +13,26 @@
     </p>
 </section>
 
-{% if hotlap %}
-<div class="card mb-4">
-    <div class="card-body">
-        <h2 class="card-title">Current Hotlapping Combination</h2>
-        <p><strong>Track:</strong> {{ hotlap.track_name }}</p>
-        <p>
-            <strong>Cars:</strong>
-            {{ hotlap.cars_used | join(', ') }}
-        </p>
-        <p><strong>Since:</strong> {{ hotlap.session_start.strftime('%Y-%m-%d %H:%M') }}</p>
-        <a href="{{ url_for('main.hotlapping_detail', group_id=hotlap.group_id) }}" class="btn btn-warm-red btn-sm me-2">Current Session</a>
-        <a href="{{ url_for('main.hotlapping') }}" class="btn btn-outline-secondary btn-sm">All Sessions</a>
-    </div>
-</div>
-{% endif %}
-
 <div class="row g-4">
+    {% if hotlap %}
     <div class="col-lg-8">
-        <h2 class="mb-3">Recent Races</h2>
-        <div class="table-responsive">
-            <table class="table table-dark table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Track</th>
-                        <th>Participants</th>
-                        <th>Cars</th>
-                        <th>Winner</th>
-                        <th>Details</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for race in races %}
-                    <tr>
-                        <td>{{ race.utc_start_time.strftime('%Y-%m-%d %H:%M') }}</td>
-                        <td>{{ race.track_name }}</td>
-                        <td>{{ race.participant_count }}</td>
-                        <td>
-                            {% set cars_list = race.cars.split(',') %}
-                            <span data-bs-toggle="tooltip" title="{{ race.cars }}">
-                                {{ cars_list[0] }}{% if cars_list|length > 1 %} +{{ cars_list|length - 1 }} more{% endif
-                                %}
-                            </span>
-                        </td>
-                        <td>{{ race.winner }}</td>
-                        <td>
-                            <a href="{{ url_for('main.race_detail', session_id=race.session_id) }}"
-                                class="btn btn-warm-red btn-sm">
-                                View
-                            </a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title">Current Hotlapping Combination</h2>
+                <p><strong>Track:</strong> {{ hotlap.track_name }}</p>
+                <p>
+                    <strong>Cars:</strong>
+                    {{ hotlap.cars_used | join(', ') }}
+                </p>
+                <p><strong>Since:</strong> {{ hotlap.session_start.strftime('%Y-%m-%d %H:%M') }}</p>
+                <a href="{{ url_for('main.hotlapping_detail', group_id=hotlap.group_id) }}" class="btn btn-warm-red btn-sm me-2">Current Session</a>
+                <a href="{{ url_for('main.hotlapping') }}" class="btn btn-outline-secondary btn-sm">All Sessions</a>
+            </div>
         </div>
     </div>
+    {% endif %}
 
-    <div class="col-lg-4">
+    <div class="{% if hotlap %}col-lg-4{% else %}col-lg-12{% endif %}">
         <h2 class="mb-3">Current Servers</h2>
         <div class="table-responsive">
             <table class="table table-dark table-hover align-middle">
