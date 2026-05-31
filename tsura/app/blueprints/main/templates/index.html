@@ -17,12 +17,12 @@
 <div class="card mb-4">
     <div class="card-body">
         <h2 class="card-title">Current Hotlapping Combination</h2>
-        <p><strong>Track:</strong> {{ hotlap.tr_name }}</p>
+        <p><strong>Track:</strong> {{ hotlap.track_name }}</p>
         <p>
             <strong>Cars:</strong>
             {{ hotlap.cars_used | join(', ') }}
         </p>
-        <p><strong>Since:</strong> {{ hotlap.event_start.strftime('%Y-%m-%d %H:%M') }}</p>
+        <p><strong>Since:</strong> {{ hotlap.utc_start_time.strftime('%Y-%m-%d %H:%M') }}</p>
         <a href="{{ url_for('main.hotlapping') }}" class="btn btn-warm-red btn-sm">See All Hotlaps</a>
     </div>
 </div>
@@ -46,9 +46,9 @@
                 <tbody>
                     {% for race in races %}
                     <tr>
-                        <td>{{ race.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
-                        <td>{{ race.track }}</td>
-                        <td>{{ race.participants }}</td>
+                        <td>{{ race.utc_start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ race.track_name }}</td>
+                        <td>{{ race.participant_count }}</td>
                         <td>
                             {% set cars_list = race.cars.split(',') %}
                             <span data-bs-toggle="tooltip" title="{{ race.cars }}">
@@ -58,7 +58,7 @@
                         </td>
                         <td>{{ race.winner }}</td>
                         <td>
-                            <a href="{{ url_for('main.event_detail', event_id=race.e_id) }}"
+                            <a href="{{ url_for('main.race_detail', session_id=race.session_id) }}"
                                 class="btn btn-warm-red btn-sm">
                                 View
                             </a>

@@ -12,26 +12,24 @@
                 <th>Track</th>
                 <th>Cars</th>
                 <th>First&nbsp;Lap</th>
-                <th>Results</th>
+                <th>Drivers</th>
                 <th>Details</th>
             </tr>
         </thead>
         <tbody>
             {% for ev in events %}
             <tr>
-                <td>{{ ev.h_h_id }}</td>
-                <td>{{ ev.tr_name }}</td>
+                <td>{{ loop.index }}</td>
+                <td>{{ ev.track_name }}</td>
                 <td>
                     <span data-bs-toggle="tooltip" title="{{ ev.cars_used | join(', ') }}">
-                        {{ ev.cars_used[0] }}{% if ev.cars_used|length > 1 %} +{{ ev.cars_used|length - 1 }} more{%
-                        endif %}
+                        {{ ev.cars_used[0] if ev.cars_used else '—' }}{% if ev.cars_used and ev.cars_used|length > 1 %} +{{ ev.cars_used|length - 1 }} more{% endif %}
                     </span>
                 </td>
-                <td>{{ ev.event_start.strftime('%Y-%m-%d %H:%M') }}</td>
-
-                <td>{{ ev.number_of_race_results }}</td>
+                <td>{{ ev.utc_start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>{{ ev.driver_count }}</td>
                 <td>
-                    <a href="{{ url_for('main.hotlapping_detail', event_number=ev.h_h_id) }}"
+                    <a href="{{ url_for('main.hotlapping_detail', event_id=ev.event_id) }}"
                         class="btn btn-warm-red btn-sm">View</a>
                 </td>
             </tr>

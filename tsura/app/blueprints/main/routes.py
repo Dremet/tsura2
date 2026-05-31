@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from decimal import Decimal
 from typing import List
 
 import psycopg
@@ -31,43 +30,50 @@ API_URL = (
 )
 
 
+# --------------------------------------------------------------------------- #
+#  INDEX                                                                      #
+# --------------------------------------------------------------------------- #
 @main_bp.route("/")
 def index():
     """Landing page: recent races, current hotlap combo, server status."""
     conn = db_pool.get_conn()
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-        # recent races ---------------------------------------------------
+        # recent races (events + heats, aggregated to one row per session) --
         cur.execute(
             """
-            SELECT e_id,
-                   timestamp,
-                   track,
-                   participants,
-                   cars,
-                   winner
-              FROM tsu.mart.fact_recent_races
-          ORDER BY timestamp DESC
+            SELECT
+                session_id,
+                utc_start_time,
+                server,
+                track_name,
+                participant_count,
+                STRING_AGG(DISTINCT vehicle_name, ', ' ORDER BY vehicle_name) AS cars,
+                MIN(driver_name) FILTER (WHERE position = 1) AS winner
+              FROM mart.v_race_results
+             WHERE server IN ('events', 'heats')
+          GROUP BY session_id, utc_start_time, server, track_name, participant_count
+          ORDER BY utc_start_time DESC
              LIMIT 20;
             """
         )
         races = cur.fetchall()
 
-        # current hotlapping combo --------------------------------------
+        # most recent hotlapping event (combo card) -------------------------
         cur.execute(
             """
-            SELECT h_h_id,
-                   tr_name,
-                   event_start,
+            SELECT event_id,
+                   track_name,
+                   utc_start_time,
                    cars_used,
-                   number_of_race_results
-              FROM tsu.mart.fact_hotlapping_list
-          ORDER BY h_h_id DESC
+                   driver_count
+              FROM mart.v_hotlap_sessions
+          ORDER BY utc_start_time DESC
              LIMIT 1;
             """
         )
         hotlap = cur.fetchone()
 
-    # server list -------------------------------------------------------
+    # server list -----------------------------------------------------------
     servers: list[dict] = []
     try:
         resp = requests.get(API_URL, timeout=3)
@@ -93,20 +99,23 @@ def index():
     )
 
 
+# --------------------------------------------------------------------------- #
+#  HOTLAPPING LIST                                                            #
+# --------------------------------------------------------------------------- #
 @main_bp.route("/hotlapping")
 def hotlapping():
-    """Page listing all hotlapping combinations."""
+    """Page listing all hotlapping events."""
     conn = db_pool.get_conn()
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
         cur.execute(
             """
-            SELECT h_h_id,
-                   tr_name,
-                   event_start,
+            SELECT event_id,
+                   track_name,
+                   utc_start_time,
                    cars_used,
-                   number_of_race_results
-              FROM tsu.mart.fact_hotlapping_list
-          ORDER BY h_h_id DESC;
+                   driver_count
+              FROM mart.v_hotlap_sessions
+          ORDER BY utc_start_time DESC;
             """
         )
         events = cur.fetchall()
@@ -117,67 +126,78 @@ def hotlapping():
 # --------------------------------------------------------------------------- #
 #  HOTLAPPING DETAIL                                                          #
 # --------------------------------------------------------------------------- #
-@main_bp.route("/hotlapping/<int:event_number>")
-def hotlapping_detail(event_number: int):
-    """Show best lap per driver and top-500 laps for a given hot-lap event."""
+@main_bp.route("/hotlapping/<event_id>")
+def hotlapping_detail(event_id: str):
+    """Best lap per driver and top-500 laps for a given hotlap event."""
     conn = db_pool.get_conn()
 
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-        # best lap per driver -------------------------------------------------
+        # best lap per driver -----------------------------------------------
         cur.execute(
             """
             SELECT
-                d_d_id,
-                d_name,
-                v_name,
-                e_timestamp,
-                h_best_lap_time,
-                h_diff_to_best_lap,
-                h_is_consistent,
-                h_is_very_consistent,
-                s_times
-            FROM tsu.mart.fact_hotlapping_results_best
-            WHERE h_id = %s
-            and h_diff_to_best_lap is not null
-        ORDER BY h_best_lap_time desc
+                steam_id,
+                driver_name,
+                vehicle_name,
+                track_name,
+                utc_start_time,
+                lap_time,
+                sector_times,
+                lap_time - MIN(lap_time) OVER () AS diff_to_best
+              FROM mart.v_hotlap_results
+             WHERE event_id = %s
+               AND is_best_lap = true
+          ORDER BY lap_time;
             """,
-            (event_number,),
+            (event_id,),
         )
         best_rows = cur.fetchall()
 
-        # overall top-500 laps -----------------------------------------------
+        # top-500 laps ------------------------------------------------------
         cur.execute(
             """
-            SELECT d_d_id,
-                   d_name,
-                   v_name,
-                   e_timestamp,
-                   h_lap_time,
-                   s_times
-              FROM tsu.mart.fact_hotlapping_results_all
-             WHERE h_id = %s
-             and h_lap_time is not null
-          ORDER BY h_lap_time
+            SELECT
+                steam_id,
+                driver_name,
+                vehicle_name,
+                utc_start_time,
+                lap_time,
+                sector_times
+              FROM mart.v_hotlap_results
+             WHERE event_id = %s
+               AND lap_time IS NOT NULL
+          ORDER BY lap_time
              LIMIT 500;
             """,
-            (event_number,),
+            (event_id,),
         )
         lap_rows = cur.fetchall()
 
-    # ------------------------------------------------------------------ #
-    # compute sector bests & theoretical optimal lap                     #
-    # ------------------------------------------------------------------ #
-    n_sectors: int = len(best_rows[0]["s_times"])
+    if not best_rows or not lap_rows:
+        return render_template(
+            "hotlapping_detail.html",
+            event_id=event_id,
+            track_name="Unknown",
+            best=[], laps=[], n_sectors=0,
+            best_sector_fmt=[], best_sector_driver=[],
+            opt_lap="-:--.----", opt_diff="+0.0000",
+            fastest_lap="-:--.----",
+        )
+
+    track_name = best_rows[0]["track_name"]
+
+    # sector bests & theoretical optimal lap --------------------------------
+    n_sectors: int = len(best_rows[0]["sector_times"] or [])
     best_sector_vals: List[float] = [float("inf")] * n_sectors
     best_sector_drivers: List[str] = [""] * n_sectors
 
     def check_sectors(row):
-        for idx, sec_time in enumerate(row["s_times"]):
+        for idx, sec_time in enumerate((row["sector_times"] or [])[:n_sectors]):
             try:
                 t = float(sec_time)
                 if t < best_sector_vals[idx]:
                     best_sector_vals[idx] = t
-                    best_sector_drivers[idx] = row["d_name"]
+                    best_sector_drivers[idx] = row["driver_name"]
             except Exception:
                 continue
 
@@ -186,50 +206,52 @@ def hotlapping_detail(event_number: int):
     for r in lap_rows:
         check_sectors(r)
 
-    optimal_lap_sec = sum(best_sector_vals)
-    best_real_sec = float(lap_rows[0]["h_lap_time"])
-    optimal_diff = optimal_lap_sec - best_real_sec
+    finite_sector_vals = [v for v in best_sector_vals if v != float("inf")]
+    optimal_lap_sec = sum(finite_sector_vals) if finite_sector_vals else 0.0
+    best_real_sec = float(lap_rows[0]["lap_time"])
+    optimal_diff = (optimal_lap_sec - best_real_sec) if optimal_lap_sec > 0 else 0.0
 
-    best_sector_fmt = [_fmt_lap_time(t) for t in best_sector_vals]
-    fastest_lap_fmt = _fmt_lap_time(best_rows[0]["h_best_lap_time"])
+    best_sector_fmt = [
+        _fmt_lap_time(t) if t != float("inf") else "-:--.----"
+        for t in best_sector_vals
+    ]
+    fastest_lap_fmt = _fmt_lap_time(best_rows[0]["lap_time"])
 
     best = [
         {
-            "driver_id": row["d_d_id"],
-            "driver": row["d_name"],
-            "car": row["v_name"],
-            "lap": _fmt_lap_time(
-                float(best_rows[0]["h_best_lap_time"])
-                + float(row["h_diff_to_best_lap"] or 0)
-            ),
+            "driver_id": row["steam_id"],
+            "driver": row["driver_name"],
+            "car": row["vehicle_name"],
+            "lap": _fmt_lap_time(row["lap_time"]),
             "diff": (
                 "-"
-                if row["h_diff_to_best_lap"] in (None, 0, Decimal(0))
-                else f"+{row['h_diff_to_best_lap']:.4f}"
+                if (row["diff_to_best"] or 0.0) == 0.0
+                else f"+{row['diff_to_best']:.4f}"
             ),
-            "consistent": row["h_is_consistent"],
-            "very_consistent": row["h_is_very_consistent"],
-            "sectors": [_fmt_lap_time(t) for t in row["s_times"]],
-            "ts": row["e_timestamp"],
+            "consistent": False,
+            "very_consistent": False,
+            "sectors": [_fmt_lap_time(t) for t in (row["sector_times"] or [])],
+            "ts": row["utc_start_time"],
         }
         for row in best_rows
     ]
 
     laps = [
         {
-            "driver_id": row["d_d_id"],
-            "driver": row["d_name"],
-            "car": row["v_name"],
-            "lap": _fmt_lap_time(row["h_lap_time"]),
-            "sectors": [_fmt_lap_time(t) for t in row["s_times"]],
-            "ts": row["e_timestamp"],
+            "driver_id": row["steam_id"],
+            "driver": row["driver_name"],
+            "car": row["vehicle_name"],
+            "lap": _fmt_lap_time(row["lap_time"]),
+            "sectors": [_fmt_lap_time(t) for t in (row["sector_times"] or [])],
+            "ts": row["utc_start_time"],
         }
         for row in lap_rows
     ]
 
     return render_template(
         "hotlapping_detail.html",
-        event_number=event_number,
+        event_id=event_id,
+        track_name=track_name,
         best=best,
         laps=laps,
         n_sectors=n_sectors,
@@ -269,7 +291,7 @@ def elo_heats():
 
 
 # --------------------------------------------------------------------------- #
-#  RACES (list + detail -- built out in Phase 2 steps 3+)                    #
+#  RACES (list + detail -- built out in Phase 2 next step)                   #
 # --------------------------------------------------------------------------- #
 @main_bp.route("/races")
 def races():
