@@ -15,6 +15,8 @@
             &nbsp;·&nbsp;
             {% if meta.server == 'heats' %}
             <span class="badge bg-danger">TripleHeat</span>
+            {% elif meta.server == 'casual_heat' %}
+            <span class="badge bg-primary">Casual-Heat</span>
             {% else %}
             <span class="badge bg-secondary">Event</span>
             {% endif %}
@@ -45,15 +47,15 @@
         </thead>
         <tbody>
             {% for r in results %}
-            <tr {% if r.position == 1 %}class="table-warning text-dark"{% endif %}>
+            <tr {% if r.position == 1 %}style="background-color: rgba(255,193,7,0.25);"{% endif %}>
                 <td><strong>{{ r.position if r.position else '—' }}</strong></td>
                 <td>
                     <a href="{{ url_for('main.driver_profile', driver_id=r.driver_id) }}"
-                       {% if r.position != 1 %}class="text-white"{% endif %}>
+                       class="{% if r.position == 1 %}text-warning fw-bold{% else %}text-white{% endif %}">
                         {{ r.driver_name }}
                     </a>
                     {% if r.driver_flag %}
-                    <small class="text-muted ms-1">{{ r.driver_flag }}</small>
+                    <span class="ms-1">{{ r.driver_flag }}</span>
                     {% endif %}
                 </td>
                 <td class="text-muted small">{{ r.vehicle or '—' }}</td>

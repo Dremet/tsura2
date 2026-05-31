@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+from collections import defaultdict
 from typing import List
 
 import psycopg
@@ -35,10 +37,46 @@ def _fmt_race_time(seconds: float) -> str:
     return f"{m}:{s:06.3f}"  # MM:SS.fff
 
 
+def _fmt_time_diff(seconds: float) -> str:
+    """Format a positive time gap as '+M:SS.sss' or '+S.sss'."""
+    if seconds is None or seconds < 0:
+        return "—"
+    m = int(seconds // 60)
+    s = seconds - m * 60
+    if m > 0:
+        return f"+{m}:{s:06.3f}"
+    return f"+{seconds:.3f}"
+
+
+# Country name (as stored in DB) → flag emoji via ISO-3166 regional indicators
+_FLAG_MAP = {
+    "Finland": "🇫🇮", "Germany": "🇩🇪", "United_Kingdom": "🇬🇧",
+    "Netherlands": "🇳🇱", "Italy": "🇮🇹", "United_States": "🇺🇸",
+    "Belgium": "🇧🇪", "Russia": "🇷🇺", "Brazil": "🇧🇷", "Spain": "🇪🇸",
+    "Austria": "🇦🇹", "France": "🇫🇷", "Switzerland": "🇨🇭", "Turkey": "🇹🇷",
+    "Czech_Republic": "🇨🇿", "Argentina": "🇦🇷", "Hungary": "🇭🇺",
+    "Canada": "🇨🇦", "Portugal": "🇵🇹", "Poland": "🇵🇱", "Greece": "🇬🇷",
+    "Guernsey": "🇬🇬", "India": "🇮🇳", "Australia": "🇦🇺", "Ukraine": "🇺🇦",
+    "Norway": "🇳🇴", "Serbia": "🇷🇸", "Denmark": "🇩🇰",
+    "Bosnia_and_Herzegovina": "🇧🇦", "Malaysia": "🇲🇾", "Ireland": "🇮🇪",
+    "Isle_of_Man": "🇮🇲", "Brunei": "🇧🇳", "Cyprus": "🇨🇾", "Kuwait": "🇰🇼",
+    "Romania": "🇷🇴", "Afghanistan": "🇦🇫", "Morocco": "🇲🇦", "Chile": "🇨🇱",
+    "Sweden": "🇸🇪", "Estonia": "🇪🇪", "Monaco": "🇲🇨", "Thailand": "🇹🇭",
+}
+
+
+def _flag_emoji(flag_text: str | None) -> str:
+    if not flag_text:
+        return ""
+    return _FLAG_MAP.get(flag_text, flag_text.replace("_", " "))
+
+
 API_URL = (
     "https://api.steampowered.com/IGameServersService/GetServerList/v1/"
     f"?key={os.environ.get('TSURA_STEAM_API_KEY','')}&filter=appid%5C1478340"
 )
+
+_RACE_SERVERS = ("events", "heats", "casual_heat")
 
 
 # --------------------------------------------------------------------------- #
@@ -46,30 +84,9 @@ API_URL = (
 # --------------------------------------------------------------------------- #
 @main_bp.route("/")
 def index():
-    """Landing page: recent races, current hotlap combo, server status."""
+    """Landing page: current hotlap combo and server status."""
     conn = db_pool.get_conn()
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-        # recent races (events + heats, aggregated to one row per session) --
-        cur.execute(
-            """
-            SELECT
-                session_id,
-                utc_start_time,
-                server,
-                track_name,
-                participant_count,
-                STRING_AGG(DISTINCT vehicle_name, ', ' ORDER BY vehicle_name) AS cars,
-                MIN(driver_name) FILTER (WHERE position = 1) AS winner
-              FROM mart.v_race_results
-             WHERE server IN ('events', 'heats')
-          GROUP BY session_id, utc_start_time, server, track_name, participant_count
-          ORDER BY utc_start_time DESC
-             LIMIT 20;
-            """
-        )
-        races = cur.fetchall()
-
-        # most recent hotlap session (combo card) ----------------------------
         cur.execute(
             """
             SELECT group_id,
@@ -107,7 +124,6 @@ def index():
 
     return render_template(
         "index.html",
-        races=races,
         servers=servers,
         hotlap=hotlap,
     )
@@ -150,7 +166,6 @@ def hotlapping_detail(group_id: str):
     conn = db_pool.get_conn()
 
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-        # best lap per driver across the whole session ----------------------
         cur.execute(
             """
             SELECT
@@ -171,7 +186,6 @@ def hotlapping_detail(group_id: str):
         )
         best_rows = cur.fetchall()
 
-        # top-500 laps across the whole session -----------------------------
         cur.execute(
             """
             SELECT
@@ -203,6 +217,19 @@ def hotlapping_detail(group_id: str):
         )
 
     track_name = best_rows[0]["track_name"]
+
+    # consistency per driver: ≥5 laps within 1%/0.3% of that driver's best ---
+    driver_lap_times: dict[int, list[float]] = defaultdict(list)
+    for r in lap_rows:
+        if r["lap_time"] is not None:
+            driver_lap_times[r["steam_id"]].append(float(r["lap_time"]))
+
+    driver_consistent: dict[int, bool] = {}
+    driver_very_consistent: dict[int, bool] = {}
+    for sid, times in driver_lap_times.items():
+        best_t = min(times)
+        driver_consistent[sid] = sum(1 for t in times if t <= best_t * 1.01) >= 5
+        driver_very_consistent[sid] = sum(1 for t in times if t <= best_t * 1.003) >= 5
 
     # sector bests & theoretical optimal lap --------------------------------
     n_sectors: int = len(best_rows[0]["sector_times"] or [])
@@ -246,8 +273,8 @@ def hotlapping_detail(group_id: str):
                 if (row["diff_to_best"] or 0.0) == 0.0
                 else f"+{row['diff_to_best']:.4f}"
             ),
-            "consistent": False,
-            "very_consistent": False,
+            "consistent": driver_consistent.get(row["steam_id"], False),
+            "very_consistent": driver_very_consistent.get(row["steam_id"], False),
             "sectors": [_fmt_lap_time(t) for t in (row["sector_times"] or [])],
             "ts": row["utc_start_time"],
         }
@@ -295,6 +322,8 @@ def elo_heats():
                    driver_name,
                    driver_flag,
                    heat_elo,
+                   heat_elo_delta,
+                   heat_elo_trend_6,
                    heat_total_races,
                    heat_last_race_at
               FROM mart.v_driver_profile
@@ -313,9 +342,41 @@ def elo_heats():
 # --------------------------------------------------------------------------- #
 @main_bp.route("/races")
 def races():
-    """Race results list: events + heats, one row per session."""
+    """Race results: per-server last-day summaries + full filtered list."""
     conn = db_pool.get_conn()
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+
+        def _last_day_summary(server: str) -> list:
+            """All races on the most recent race day for a given server, max 5."""
+            cur.execute(
+                """
+                WITH last_date AS (
+                    SELECT DATE(MAX(utc_start_time) AT TIME ZONE 'Europe/Berlin') AS d
+                    FROM mart.v_race_results
+                    WHERE server = %(server)s
+                )
+                SELECT DISTINCT
+                    r.session_id,
+                    r.utc_start_time,
+                    r.track_name,
+                    MIN(r.human_participant_count) AS human_count,
+                    MIN(r.driver_name) FILTER (WHERE r.position = 1) AS winner
+                FROM mart.v_race_results r, last_date
+                WHERE r.server = %(server)s
+                  AND DATE(r.utc_start_time AT TIME ZONE 'Europe/Berlin') = last_date.d
+                GROUP BY r.session_id, r.utc_start_time, r.track_name
+                ORDER BY r.utc_start_time ASC
+                LIMIT 5;
+                """,
+                {"server": server},
+            )
+            return cur.fetchall()
+
+        summary_events = _last_day_summary("events")
+        summary_heats = _last_day_summary("heats")
+        summary_casual = _last_day_summary("casual_heat")
+
+        # Full list: all race servers, human participants >= 4
         cur.execute(
             """
             SELECT
@@ -323,19 +384,26 @@ def races():
                 utc_start_time,
                 server,
                 track_name,
-                participant_count,
+                MIN(human_participant_count) AS human_count,
                 STRING_AGG(DISTINCT vehicle_name, ', ' ORDER BY vehicle_name) AS cars,
                 MIN(driver_name) FILTER (WHERE position = 1) AS winner
               FROM mart.v_race_results
-             WHERE server IN ('events', 'heats')
-          GROUP BY session_id, utc_start_time, server, track_name, participant_count
+             WHERE server IN ('events', 'heats', 'casual_heat')
+          GROUP BY session_id, utc_start_time, server, track_name
+            HAVING MIN(human_participant_count) >= 4
           ORDER BY utc_start_time DESC
              LIMIT 200;
             """
         )
         race_list = cur.fetchall()
 
-    return render_template("races.html", races=race_list)
+    return render_template(
+        "races.html",
+        races=race_list,
+        summary_events=summary_events,
+        summary_heats=summary_heats,
+        summary_casual=summary_casual,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -354,7 +422,7 @@ def race_detail(session_id: str):
                 server,
                 track_name,
                 track_type,
-                participant_count,
+                human_participant_count,
                 finished_state,
                 steam_id,
                 driver_name,
@@ -380,36 +448,158 @@ def race_detail(session_id: str):
                                meta=None, results=[])
 
     meta = {
-        "session_id":      rows[0]["session_id"],
-        "utc_start_time":  rows[0]["utc_start_time"],
-        "server":          rows[0]["server"],
-        "track_name":      rows[0]["track_name"],
-        "track_type":      rows[0]["track_type"],
-        "participant_count": rows[0]["participant_count"],
-        "finished_state":  rows[0]["finished_state"],
+        "session_id":        rows[0]["session_id"],
+        "utc_start_time":    rows[0]["utc_start_time"],
+        "server":            rows[0]["server"],
+        "track_name":        rows[0]["track_name"],
+        "track_type":        rows[0]["track_type"],
+        "participant_count": rows[0]["human_participant_count"],
+        "finished_state":    rows[0]["finished_state"],
     }
 
-    results = [
-        {
-            "position":      row["position"],
-            "driver_id":     row["steam_id"],
-            "driver_name":   row["driver_name"],
-            "driver_flag":   row["driver_flag"],
-            "driver_clan":   row["driver_clan"],
-            "vehicle":       row["vehicle_name"],
-            "finish_time":   _fmt_race_time(row["finish_time"]),
-            "laps":          row["laps_completed"],
-            "elo_value":     row["elo_value"],
-            "elo_delta":     row["elo_delta"],
-            "current_elo":   row["current_elo"],
-        }
-        for row in rows
-    ]
+    # find winner's time + laps for relative time calculation
+    winner_time = None
+    winner_laps = None
+    for r in rows:
+        if r["position"] == 1:
+            winner_time = r["finish_time"]
+            winner_laps = r["laps_completed"]
+            break
+
+    results = []
+    for row in rows:
+        pos = row["position"]
+        ft = row["finish_time"]
+        laps = row["laps_completed"]
+
+        if pos == 1:
+            time_display = _fmt_race_time(ft)
+        elif laps is not None and winner_laps is not None and laps < winner_laps:
+            lap_diff = winner_laps - laps
+            time_display = f"+{lap_diff} lap{'s' if lap_diff != 1 else ''}"
+        elif ft is not None and winner_time is not None:
+            time_display = _fmt_time_diff(ft - winner_time)
+        else:
+            time_display = _fmt_race_time(ft)
+
+        results.append(
+            {
+                "position":    pos,
+                "driver_id":   row["steam_id"],
+                "driver_name": row["driver_name"],
+                "driver_flag": _flag_emoji(row["driver_flag"]),
+                "driver_clan": row["driver_clan"],
+                "vehicle":     row["vehicle_name"],
+                "finish_time": time_display,
+                "laps":        laps,
+                "elo_value":   row["elo_value"],
+                "elo_delta":   row["elo_delta"],
+                "current_elo": row["current_elo"],
+            }
+        )
 
     return render_template("race_detail.html", meta=meta, results=results)
 
 
-@main_bp.route("/driver/<driver_id>")
-def driver_profile(driver_id: str):
-    """Placeholder page for a driver profile."""
-    return f"Driver profile for ID {driver_id} - coming soon!", 200
+# --------------------------------------------------------------------------- #
+#  DRIVER PROFILE                                                             #
+# --------------------------------------------------------------------------- #
+@main_bp.route("/driver/<int:driver_id>")
+def driver_profile(driver_id: int):
+    """Driver profile: ELO, ELO history chart, flag, last 10 races."""
+    conn = db_pool.get_conn()
+    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        # Driver overview from profile view
+        cur.execute(
+            """
+            SELECT steam_id, driver_name, driver_flag, driver_clan,
+                   heat_elo, heat_total_races, heat_wins, heat_best_position,
+                   heat_last_race_at, event_races, event_wins,
+                   hotlap_events, hotlap_total_laps, hotlap_alltime_best
+              FROM mart.v_driver_profile
+             WHERE steam_id = %s;
+            """,
+            (driver_id,),
+        )
+        profile = cur.fetchone()
+
+        if not profile:
+            return render_template("driver.html", profile=None, driver_id=driver_id,
+                                   elo_chart_json="[]", last_races=[])
+
+        # ELO history (live elo_history entries only; bootstrap is the start point)
+        cur.execute(
+            """
+            SELECT utc_start_time, elo_value, elo_delta, track_name
+              FROM mart.v_race_results
+             WHERE steam_id = %s
+               AND server = 'heats'
+               AND elo_value IS NOT NULL
+          ORDER BY utc_start_time ASC;
+            """,
+            (driver_id,),
+        )
+        elo_rows = cur.fetchall()
+
+        # Last 10 qualifying race participations:
+        # - exclude hotlapping
+        # - exclude event-server races with < 4 human participants
+        # - heats (Tripleheat) and casual_heat always count
+        cur.execute(
+            """
+            SELECT
+                session_id,
+                utc_start_time,
+                server,
+                track_name,
+                position,
+                human_participant_count,
+                finish_time,
+                laps_completed
+              FROM mart.v_race_results
+             WHERE steam_id = %s
+               AND server != 'hotlapping'
+               AND NOT (server = 'events' AND human_participant_count < 4)
+          ORDER BY utc_start_time DESC
+             LIMIT 10;
+            """,
+            (driver_id,),
+        )
+        last_races_raw = cur.fetchall()
+
+    last_races = [
+        {
+            "session_id":   r["session_id"],
+            "date":         r["utc_start_time"].strftime("%d.%m.%y"),
+            "server":       r["server"],
+            "track_name":   r["track_name"],
+            "position":     r["position"],
+            "human_count":  r["human_participant_count"],
+        }
+        for r in last_races_raw
+    ]
+
+    # Build ELO chart data: start with bootstrap value, then live entries
+    elo_chart = []
+    if profile["heat_elo"] is not None and not elo_rows:
+        # Only bootstrap, no live history yet
+        elo_chart.append({
+            "label": "Start",
+            "elo": round(profile["heat_elo"], 1),
+        })
+    for r in elo_rows:
+        elo_chart.append({
+            "label": r["utc_start_time"].strftime("%d.%m.%y"),
+            "elo": round(float(r["elo_value"]), 1),
+            "delta": round(float(r["elo_delta"]), 1) if r["elo_delta"] else None,
+            "track": r["track_name"],
+        })
+
+    return render_template(
+        "driver.html",
+        profile=profile,
+        driver_id=driver_id,
+        flag_emoji=_flag_emoji(profile["driver_flag"]),
+        elo_chart_json=json.dumps(elo_chart),
+        last_races=last_races,
+    )
