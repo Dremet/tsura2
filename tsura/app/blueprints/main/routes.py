@@ -69,16 +69,19 @@ def index():
         )
         races = cur.fetchall()
 
-        # most recent hotlapping event (combo card) -------------------------
+        # most recent hotlap session (combo card) ----------------------------
         cur.execute(
             """
-            SELECT event_id,
+            SELECT group_id,
                    track_name,
-                   utc_start_time,
+                   session_start,
+                   session_end,
                    cars_used,
-                   driver_count
-              FROM mart.v_hotlap_sessions
-          ORDER BY utc_start_time DESC
+                   driver_count,
+                   total_laps,
+                   best_lap_time
+              FROM mart.v_hotlap_grouped_sessions
+          ORDER BY session_end DESC
              LIMIT 1;
             """
         )
@@ -115,35 +118,39 @@ def index():
 # --------------------------------------------------------------------------- #
 @main_bp.route("/hotlapping")
 def hotlapping():
-    """Page listing all hotlapping events."""
+    """Hotlap sessions grouped by consecutive same-track runs."""
     conn = db_pool.get_conn()
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
         cur.execute(
             """
-            SELECT event_id,
+            SELECT group_id,
                    track_name,
-                   utc_start_time,
+                   session_start,
+                   session_end,
+                   event_count,
+                   driver_count,
+                   total_laps,
                    cars_used,
-                   driver_count
-              FROM mart.v_hotlap_sessions
-          ORDER BY utc_start_time DESC;
+                   best_lap_time
+              FROM mart.v_hotlap_grouped_sessions
+          ORDER BY session_end DESC;
             """
         )
-        events = cur.fetchall()
+        sessions = cur.fetchall()
 
-    return render_template("hotlapping.html", events=events)
+    return render_template("hotlapping.html", sessions=sessions)
 
 
 # --------------------------------------------------------------------------- #
 #  HOTLAPPING DETAIL                                                          #
 # --------------------------------------------------------------------------- #
-@main_bp.route("/hotlapping/<event_id>")
-def hotlapping_detail(event_id: str):
-    """Best lap per driver and top-500 laps for a given hotlap event."""
+@main_bp.route("/hotlapping/<group_id>")
+def hotlapping_detail(group_id: str):
+    """Best lap per driver and top-500 laps across all events of a grouped session."""
     conn = db_pool.get_conn()
 
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-        # best lap per driver -----------------------------------------------
+        # best lap per driver across the whole session ----------------------
         cur.execute(
             """
             SELECT
@@ -155,16 +162,16 @@ def hotlapping_detail(event_id: str):
                 lap_time,
                 sector_times,
                 lap_time - MIN(lap_time) OVER () AS diff_to_best
-              FROM mart.v_hotlap_results
-             WHERE event_id = %s
+              FROM mart.v_hotlap_group_results
+             WHERE group_id = %s
                AND is_best_lap = true
           ORDER BY lap_time;
             """,
-            (event_id,),
+            (group_id,),
         )
         best_rows = cur.fetchall()
 
-        # top-500 laps ------------------------------------------------------
+        # top-500 laps across the whole session -----------------------------
         cur.execute(
             """
             SELECT
@@ -174,20 +181,20 @@ def hotlapping_detail(event_id: str):
                 utc_start_time,
                 lap_time,
                 sector_times
-              FROM mart.v_hotlap_results
-             WHERE event_id = %s
+              FROM mart.v_hotlap_group_results
+             WHERE group_id = %s
                AND lap_time IS NOT NULL
           ORDER BY lap_time
              LIMIT 500;
             """,
-            (event_id,),
+            (group_id,),
         )
         lap_rows = cur.fetchall()
 
     if not best_rows or not lap_rows:
         return render_template(
             "hotlapping_detail.html",
-            event_id=event_id,
+            group_id=group_id,
             track_name="Unknown",
             best=[], laps=[], n_sectors=0,
             best_sector_fmt=[], best_sector_driver=[],
@@ -261,7 +268,7 @@ def hotlapping_detail(event_id: str):
 
     return render_template(
         "hotlapping_detail.html",
-        event_id=event_id,
+        group_id=group_id,
         track_name=track_name,
         best=best,
         laps=laps,

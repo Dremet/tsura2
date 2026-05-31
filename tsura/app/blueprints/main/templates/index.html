@@ -22,8 +22,9 @@
             <strong>Cars:</strong>
             {{ hotlap.cars_used | join(', ') }}
         </p>
-        <p><strong>Since:</strong> {{ hotlap.utc_start_time.strftime('%Y-%m-%d %H:%M') }}</p>
-        <a href="{{ url_for('main.hotlapping') }}" class="btn btn-warm-red btn-sm">See All Hotlaps</a>
+        <p><strong>Since:</strong> {{ hotlap.session_start.strftime('%Y-%m-%d %H:%M') }}</p>
+        <a href="{{ url_for('main.hotlapping_detail', group_id=hotlap.group_id) }}" class="btn btn-warm-red btn-sm me-2">Current Session</a>
+        <a href="{{ url_for('main.hotlapping') }}" class="btn btn-outline-secondary btn-sm">All Sessions</a>
     </div>
 </div>
 {% endif %}
