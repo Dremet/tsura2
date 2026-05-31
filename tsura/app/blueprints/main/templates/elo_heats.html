@@ -31,8 +31,8 @@
                 <th>#</th>
                 <th>Driver</th>
                 <th>Current&nbsp;ELO</th>
-                <th data-bs-toggle="tooltip" title="ELO change from the most recent heat (coming soon)">&#916;</th>
-                <th data-bs-toggle="tooltip" title="ELO change over the last 6 heats (coming soon)">&#916;&nbsp;6</th>
+                <th data-bs-toggle="tooltip" title="ELO change from the most recent heat">Delta</th>
+                <th data-bs-toggle="tooltip" title="ELO change over the last 6 heats">Trend</th>
                 <th>Heats</th>
                 <th>Last&nbsp;Heat</th>
             </tr>
@@ -53,8 +53,17 @@
 
                 <td>{{ "%.1f"|format(r.heat_elo) }}</td>
 
-                <td class="text-muted">—</td>
-                <td class="text-muted">—</td>
+                <td class="{% if r.heat_elo_delta and r.heat_elo_delta > 0 %}text-success{% elif r.heat_elo_delta and r.heat_elo_delta < 0 %}text-danger{% else %}text-muted{% endif %}">
+                    {% if r.heat_elo_delta is not none and r.heat_elo_delta != None %}
+                        {{ "%+.1f"|format(r.heat_elo_delta) }}
+                    {% else %}—{% endif %}
+                </td>
+
+                <td class="{% if r.heat_elo_trend_6 and r.heat_elo_trend_6 > 0 %}text-success{% elif r.heat_elo_trend_6 and r.heat_elo_trend_6 < 0 %}text-danger{% else %}text-muted{% endif %}">
+                    {% if r.heat_elo_trend_6 is not none and r.heat_elo_trend_6 != None %}
+                        {{ "%+.1f"|format(r.heat_elo_trend_6) }}
+                    {% else %}—{% endif %}
+                </td>
 
                 <td>{{ r.heat_total_races }}</td>
 
