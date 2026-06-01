@@ -49,6 +49,9 @@
                     <a href="{{ url_for('main.driver_profile', driver_id=r.steam_id) }}">
                         {{ r.driver_name }}
                     </a>
+                    {% if r.display_tag %}
+                    <span class="badge bg-secondary ms-1 fw-normal">{{ r.display_tag }}</span>
+                    {% endif %}
                 </td>
 
                 <td>{{ "%.1f"|format(r.heat_elo) }}</td>

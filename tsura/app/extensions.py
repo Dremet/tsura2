@@ -1,10 +1,13 @@
-"""Shared extensions and helpers (DB pool, cache, etc.)."""
+"""Shared extensions and helpers (DB pool, CSRF, etc.)."""
 
 from __future__ import annotations
 
 import atexit
+import hashlib
+import hmac
+
 from flask import current_app, g
-from psycopg_pool import ConnectionPool  # ✨ corrected import
+from psycopg_pool import ConnectionPool
 
 
 class PsycopgPool:
@@ -42,3 +45,10 @@ class PsycopgPool:
 
 
 db_pool = PsycopgPool()
+
+
+def make_csrf_token(session_id: str, secret_key: str) -> str:
+    """Return a 64-char HMAC-SHA256 hex token tied to session_id."""
+    return hmac.new(
+        secret_key.encode(), session_id.encode(), hashlib.sha256
+    ).hexdigest()

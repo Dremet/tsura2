@@ -34,8 +34,19 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('main.elo_heats') }}">ELO Heats</a>
                     </li>
-
                 </ul>
+                <!-- Auth -->
+                <div class="d-flex align-items-center ms-3">
+                    {% if current_steam_id %}
+                    <a href="{{ url_for('main.driver_profile', driver_id=current_steam_id) }}"
+                       class="btn btn-outline-light btn-sm me-2">My Profile</a>
+                    <a href="{{ url_for('auth.logout') }}"
+                       class="btn btn-outline-secondary btn-sm">Logout</a>
+                    {% else %}
+                    <a href="{{ url_for('auth.login') }}"
+                       class="btn btn-warm-red btn-sm">Login via Steam</a>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </nav>

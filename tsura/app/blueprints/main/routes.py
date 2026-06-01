@@ -2,17 +2,42 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
+import re
 from collections import defaultdict
 from typing import List
 
 import psycopg
 import requests
-from flask import render_template
+from flask import abort, current_app, g, redirect, render_template, request, url_for
 
 from . import main_bp
-from ...extensions import db_pool
+from ...extensions import db_pool, make_csrf_token
+
+
+# ── Input validation patterns for profile edit ───────────────────────────────
+_TEAM_TAG_RE    = re.compile(r"^[A-Za-z0-9]{1,3}$")
+_WORKSHOP_RE    = re.compile(
+    r"^https://steamcommunity\.com/sharedfiles/filedetails/\?id=\d+$"
+)
+_TWITCH_RE      = re.compile(
+    r"^https://(www\.)?twitch\.tv/[A-Za-z0-9_]{1,25}/?$"
+)
+_YOUTUBE_RE     = re.compile(
+    r"^https://(www\.)?youtube\.com/(@[A-Za-z0-9_.\-]{1,100}|channel/[A-Za-z0-9_\-]{1,64})/?$"
+)
+
+
+def _csrf_ok() -> bool:
+    submitted = request.form.get("csrf_token", "")
+    sid = g.get("session_id")
+    if not sid:
+        return False
+    expected = make_csrf_token(sid, current_app.config["SECRET_KEY"])
+    return hmac.compare_digest(submitted, expected)
 
 
 # ---------------------------------------------------------------------- #
@@ -355,6 +380,7 @@ def elo_heats():
             SELECT steam_id,
                    driver_name,
                    driver_flag,
+                   display_tag,
                    heat_elo,
                    heat_elo_delta,
                    heat_elo_trend_6,
@@ -429,6 +455,7 @@ def race_detail(session_id: str):
                 driver_name,
                 driver_flag,
                 driver_clan,
+                display_tag,
                 vehicle_name,
                 position,
                 finish_time,
@@ -497,7 +524,7 @@ def race_detail(session_id: str):
                 "driver_id":          row["steam_id"],
                 "driver_name":        row["driver_name"],
                 "driver_flag":        _flag_code(row["driver_flag"]),
-                "driver_clan":        row["driver_clan"],
+                "display_tag":        row["display_tag"],
                 "vehicle":            row["vehicle_name"],
                 "finish_time":        time_display,
                 "laps":               laps,
@@ -523,10 +550,12 @@ def driver_profile(driver_id: int):
         # Driver overview from profile view
         cur.execute(
             """
-            SELECT steam_id, driver_name, driver_flag, driver_clan,
+            SELECT steam_id, driver_name, driver_flag, driver_clan, display_tag,
                    heat_elo, heat_total_races, heat_wins, heat_best_position,
                    heat_last_race_at, event_races, event_wins,
-                   hotlap_events, hotlap_total_laps, hotlap_top5
+                   hotlap_events, hotlap_total_laps, hotlap_top5,
+                   team_tag, fav_track_name, fav_track_url,
+                   fav_car_name, fav_car_url, twitch_url, youtube_url
               FROM mart.v_driver_profile
              WHERE steam_id = %s;
             """,
@@ -610,3 +639,90 @@ def driver_profile(driver_id: int):
         elo_chart_json=json.dumps(elo_chart),
         last_races=last_races,
     )
+
+
+# --------------------------------------------------------------------------- #
+#  DRIVER PROFILE EDIT                                                        #
+# --------------------------------------------------------------------------- #
+@main_bp.route("/driver/<int:driver_id>/edit", methods=["POST"])
+def driver_profile_edit(driver_id: int):
+    """Update editable profile fields for the logged-in driver only."""
+    if not g.get("current_steam_id") or g.current_steam_id != driver_id:
+        abort(403)
+    if not _csrf_ok():
+        abort(403)
+
+    conn = db_pool.get_conn()
+
+    # Ensure this steam_id has a racing record (FK requirement).
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM mart.v_driver_profile WHERE steam_id = %s",
+            (driver_id,),
+        )
+        if not cur.fetchone():
+            abort(404)
+
+    # ── Validate every field before touching the DB ───────────────────────────
+    raw_tag = request.form.get("team_tag", "").strip()
+    team_tag: str | None = raw_tag or None
+    if team_tag and not _TEAM_TAG_RE.fullmatch(team_tag):
+        abort(400)
+
+    fav_track_name: str | None = (request.form.get("fav_track_name", "").strip() or None)
+    if fav_track_name:
+        fav_track_name = fav_track_name[:80]
+
+    fav_track_url: str | None = (request.form.get("fav_track_url", "").strip() or None)
+    if fav_track_url and not _WORKSHOP_RE.fullmatch(fav_track_url):
+        abort(400)
+
+    fav_car_name: str | None = (request.form.get("fav_car_name", "").strip() or None)
+    if fav_car_name:
+        fav_car_name = fav_car_name[:80]
+
+    fav_car_url: str | None = (request.form.get("fav_car_url", "").strip() or None)
+    if fav_car_url and not _WORKSHOP_RE.fullmatch(fav_car_url):
+        abort(400)
+
+    twitch_url: str | None = (request.form.get("twitch_url", "").strip() or None)
+    if twitch_url and not _TWITCH_RE.fullmatch(twitch_url):
+        abort(400)
+
+    youtube_url: str | None = (request.form.get("youtube_url", "").strip() or None)
+    if youtube_url and not _YOUTUBE_RE.fullmatch(youtube_url):
+        abort(400)
+
+    # ── Upsert ───────────────────────────────────────────────────────────────
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO mart.driver_profiles
+                (steam_id, team_tag, fav_track_name, fav_track_url,
+                 fav_car_name, fav_car_url, twitch_url, youtube_url, updated_at)
+            VALUES (%(sid)s, %(tag)s, %(ftn)s, %(ftu)s, %(fcn)s, %(fcu)s,
+                    %(tw)s,  %(yt)s,  now())
+            ON CONFLICT (steam_id) DO UPDATE SET
+                team_tag       = EXCLUDED.team_tag,
+                fav_track_name = EXCLUDED.fav_track_name,
+                fav_track_url  = EXCLUDED.fav_track_url,
+                fav_car_name   = EXCLUDED.fav_car_name,
+                fav_car_url    = EXCLUDED.fav_car_url,
+                twitch_url     = EXCLUDED.twitch_url,
+                youtube_url    = EXCLUDED.youtube_url,
+                updated_at     = now()
+            """,
+            {
+                "sid": driver_id,
+                "tag": team_tag,
+                "ftn": fav_track_name,
+                "ftu": fav_track_url,
+                "fcn": fav_car_name,
+                "fcu": fav_car_url,
+                "tw":  twitch_url,
+                "yt":  youtube_url,
+            },
+        )
+    conn.commit()
+
+    return redirect(url_for("main.driver_profile", driver_id=driver_id))
