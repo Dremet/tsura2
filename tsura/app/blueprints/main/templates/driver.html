@@ -101,7 +101,7 @@
                     data-bs-target="#editProfile"
                     aria-expanded="false"
                     aria-controls="editProfile">
-                ✏ Edit Profile
+                &#9998; Edit Profile
             </button>
             {% endif %}
         </div>
@@ -115,46 +115,46 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
                     <div class="row g-3">
-                        <!-- Team-Kürzel -->
+                        <!-- Team tag -->
                         <div class="col-12 col-sm-4">
                             <label class="form-label small text-muted">
-                                Team-Kürzel
+                                Team tag
                                 <span class="text-muted">(max 3, A–Z / 0–9)</span>
                             </label>
                             <input type="text" name="team_tag" class="form-control form-control-sm"
                                    maxlength="3" pattern="[A-Za-z0-9]{0,3}"
                                    value="{{ profile.team_tag or '' }}"
-                                   placeholder="z.B. TSU">
+                                   placeholder="e.g. TSU">
                         </div>
 
-                        <!-- Lieblingsstrecke -->
+                        <!-- Favourite track -->
                         <div class="col-12 col-sm-4">
-                            <label class="form-label small text-muted">Lieblingsstrecke – Name</label>
+                            <label class="form-label small text-muted">Favourite track – Name</label>
                             <input type="text" name="fav_track_name" class="form-control form-control-sm"
                                    maxlength="80"
                                    value="{{ profile.fav_track_name or '' }}"
-                                   placeholder="z.B. Nürburgring GP">
+                                   placeholder="e.g. Nürburgring GP">
                         </div>
                         <div class="col-12 col-sm-4">
                             <label class="form-label small text-muted">
-                                Lieblingsstrecke – Steam-Workshop-Link
+                                Favourite track – Steam Workshop link
                             </label>
                             <input type="url" name="fav_track_url" class="form-control form-control-sm"
                                    value="{{ profile.fav_track_url or '' }}"
                                    placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=…">
                         </div>
 
-                        <!-- Lieblingsauto -->
+                        <!-- Favourite car -->
                         <div class="col-12 col-sm-4">
-                            <label class="form-label small text-muted">Lieblingsauto – Name</label>
+                            <label class="form-label small text-muted">Favourite car – Name</label>
                             <input type="text" name="fav_car_name" class="form-control form-control-sm"
                                    maxlength="80"
                                    value="{{ profile.fav_car_name or '' }}"
-                                   placeholder="z.B. Ferrari 488 GT3">
+                                   placeholder="e.g. Ferrari 488 GT3">
                         </div>
                         <div class="col-12 col-sm-4">
                             <label class="form-label small text-muted">
-                                Lieblingsauto – Steam-Workshop-Link
+                                Favourite car – Steam Workshop link
                             </label>
                             <input type="url" name="fav_car_url" class="form-control form-control-sm"
                                    value="{{ profile.fav_car_url or '' }}"
@@ -163,28 +163,28 @@
 
                         <!-- Twitch -->
                         <div class="col-12 col-sm-4">
-                            <label class="form-label small text-muted">Twitch-Kanal</label>
+                            <label class="form-label small text-muted">Twitch channel</label>
                             <input type="url" name="twitch_url" class="form-control form-control-sm"
                                    value="{{ profile.twitch_url or '' }}"
-                                   placeholder="https://twitch.tv/deinkanal">
+                                   placeholder="https://twitch.tv/yourchannel">
                         </div>
 
                         <!-- YouTube -->
                         <div class="col-12 col-sm-4">
-                            <label class="form-label small text-muted">YouTube-Kanal</label>
+                            <label class="form-label small text-muted">YouTube channel</label>
                             <input type="url" name="youtube_url" class="form-control form-control-sm"
                                    value="{{ profile.youtube_url or '' }}"
-                                   placeholder="https://youtube.com/@deinkanal">
+                                   placeholder="https://youtube.com/@yourchannel">
                         </div>
                     </div>
 
                     <div class="mt-3 d-flex gap-2">
-                        <button type="submit" class="btn btn-warm-red btn-sm">Speichern</button>
+                        <button type="submit" class="btn btn-warm-red btn-sm">Save</button>
                         <button type="button"
                                 class="btn btn-outline-secondary btn-sm"
                                 data-bs-toggle="collapse"
                                 data-bs-target="#editProfile">
-                            Abbrechen
+                            Cancel
                         </button>
                     </div>
                 </form>
@@ -197,7 +197,7 @@
         <div class="mt-3 d-flex gap-4 flex-wrap">
             {% if profile.fav_track_name %}
             <div class="small">
-                <span class="text-muted">Lieblingsstrecke: </span>
+                <span class="text-muted">Favourite track: </span>
                 {% if profile.fav_track_url %}
                 <a href="{{ profile.fav_track_url }}" target="_blank" rel="noopener noreferrer">
                     {{ profile.fav_track_name }}
@@ -209,7 +209,7 @@
             {% endif %}
             {% if profile.fav_car_name %}
             <div class="small">
-                <span class="text-muted">Lieblingsauto: </span>
+                <span class="text-muted">Favourite car: </span>
                 {% if profile.fav_car_url %}
                 <a href="{{ profile.fav_car_url }}" target="_blank" rel="noopener noreferrer">
                     {{ profile.fav_car_name }}
