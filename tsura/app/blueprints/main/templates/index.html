@@ -13,7 +13,6 @@
     </p>
 </section>
 
-<!-- Per-server last race day summaries ------------------------------------ -->
 {% macro server_summary(title, badge_class, badge_label, sessions) %}
 {% if sessions %}
 <div class="card mb-3">
@@ -54,14 +53,11 @@
 {% endif %}
 {% endmacro %}
 
-{{ server_summary("TripleHeat", "bg-danger", "TripleHeat", summary_heats) }}
-{{ server_summary("Event Server", "bg-secondary", "Event", summary_events) }}
-{{ server_summary("Casual-Heat", "bg-primary", "Casual-Heat", summary_casual) }}
-
 <div class="row g-4">
-    {% if hotlap %}
+    <!-- LEFT column: Hotlapping combo + server summaries -->
     <div class="col-lg-8">
-        <div class="card">
+        {% if hotlap %}
+        <div class="card mb-3">
             <div class="card-body">
                 <h2 class="card-title">Current Hotlapping Combination</h2>
                 <p><strong>Track:</strong> {{ hotlap.track_name }}</p>
@@ -74,10 +70,15 @@
                 <a href="{{ url_for('main.hotlapping') }}" class="btn btn-outline-secondary btn-sm">All Sessions</a>
             </div>
         </div>
-    </div>
-    {% endif %}
+        {% endif %}
 
-    <div class="{% if hotlap %}col-lg-4{% else %}col-lg-12{% endif %}">
+        {{ server_summary("Casual-Heat", "bg-primary", "Casual-Heat", summary_casual) }}
+        {{ server_summary("TripleHeat", "bg-danger", "TripleHeat", summary_heats) }}
+        {{ server_summary("Event Server", "bg-secondary", "Event", summary_events) }}
+    </div>
+
+    <!-- RIGHT column: Currently active servers -->
+    <div class="col-lg-4">
         <h2 class="mb-3">Current Servers</h2>
         <div class="table-responsive">
             <table class="table table-dark table-hover align-middle">

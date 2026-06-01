@@ -62,7 +62,9 @@
 <div class="card mb-4">
     <div class="card-body">
         <h3 class="card-title mb-1">
-            {{ flag_emoji }}
+            {% if flag_code %}
+            <span class="fi fi-{{ flag_code }} me-1"></span>
+            {% endif %}
             {{ profile.driver_name }}
             {% if profile.driver_clan %}
             <small class="text-muted fs-6 ms-2">{{ profile.driver_clan }}</small>
@@ -117,9 +119,7 @@
                 <h5 class="card-title">Hotlapping</h5>
                 <p class="display-6 fw-bold mb-1">{{ profile.hotlap_events }}</p>
                 <p class="text-muted mb-1">sessions · {{ profile.hotlap_total_laps }} laps</p>
-                {% if profile.hotlap_alltime_best %}
-                <p class="text-muted mb-0 small">All-time best: {{ "%.4f"|format(profile.hotlap_alltime_best) }} s</p>
-                {% endif %}
+                <p class="text-muted mb-0 small">Top-5 finishes: {{ profile.hotlap_top5 }}</p>
             </div>
         </div>
     </div>

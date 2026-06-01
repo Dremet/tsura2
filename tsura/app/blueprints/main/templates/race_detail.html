@@ -39,6 +39,7 @@
                 <th>Car</th>
                 <th>Time</th>
                 <th>Laps</th>
+                <th data-bs-toggle="tooltip" title="Fastest lap of this driver in the race">Best Lap</th>
                 {% if meta.server == 'tripleheat' %}
                 <th data-bs-toggle="tooltip" title="ELO after this race">ELO</th>
                 <th data-bs-toggle="tooltip" title="ELO change from this race">&#916;</th>
@@ -50,17 +51,20 @@
             <tr {% if r.position == 1 %}style="background-color: rgba(255,193,7,0.25);"{% endif %}>
                 <td><strong>{{ r.position if r.position else '—' }}</strong></td>
                 <td>
+                    {% if r.driver_flag %}
+                    <span class="fi fi-{{ r.driver_flag }} me-1"></span>
+                    {% endif %}
                     <a href="{{ url_for('main.driver_profile', driver_id=r.driver_id) }}"
                        class="{% if r.position == 1 %}text-warning fw-bold{% else %}text-white{% endif %}">
                         {{ r.driver_name }}
                     </a>
-                    {% if r.driver_flag %}
-                    <span class="ms-1">{{ r.driver_flag }}</span>
-                    {% endif %}
                 </td>
                 <td class="text-muted small">{{ r.vehicle or '—' }}</td>
                 <td>{{ r.finish_time }}</td>
                 <td>{{ r.laps if r.laps else '—' }}</td>
+                <td {% if r.is_overall_fastest %}style="color: #c084fc; font-weight: 600;"{% else %}class="text-muted small"{% endif %}>
+                    {{ r.fastest_lap if r.fastest_lap != '-:--.----' else '—' }}
+                </td>
                 {% if meta.server == 'tripleheat' %}
                 <td>
                     {% if r.elo_value %}{{ "%.1f"|format(r.elo_value) }}{% else %}—{% endif %}

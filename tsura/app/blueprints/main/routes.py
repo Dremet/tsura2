@@ -38,37 +38,37 @@ def _fmt_race_time(seconds: float) -> str:
 
 
 def _fmt_time_diff(seconds: float) -> str:
-    """Format a positive time gap as '+M:SS.sss' or '+S.sss'."""
+    """Format a positive time gap as '+MM:SS.FFF' (FFF = milliseconds)."""
     if seconds is None or seconds < 0:
         return "—"
     m = int(seconds // 60)
     s = seconds - m * 60
-    if m > 0:
-        return f"+{m}:{s:06.3f}"
-    return f"+{seconds:.3f}"
+    return f"+{m:02d}:{s:06.3f}"
 
 
-# Country name (as stored in DB) → flag emoji via ISO-3166 regional indicators
-_FLAG_MAP = {
-    "Finland": "🇫🇮", "Germany": "🇩🇪", "United_Kingdom": "🇬🇧",
-    "Netherlands": "🇳🇱", "Italy": "🇮🇹", "United_States": "🇺🇸",
-    "Belgium": "🇧🇪", "Russia": "🇷🇺", "Brazil": "🇧🇷", "Spain": "🇪🇸",
-    "Austria": "🇦🇹", "France": "🇫🇷", "Switzerland": "🇨🇭", "Turkey": "🇹🇷",
-    "Czech_Republic": "🇨🇿", "Argentina": "🇦🇷", "Hungary": "🇭🇺",
-    "Canada": "🇨🇦", "Portugal": "🇵🇹", "Poland": "🇵🇱", "Greece": "🇬🇷",
-    "Guernsey": "🇬🇬", "India": "🇮🇳", "Australia": "🇦🇺", "Ukraine": "🇺🇦",
-    "Norway": "🇳🇴", "Serbia": "🇷🇸", "Denmark": "🇩🇰",
-    "Bosnia_and_Herzegovina": "🇧🇦", "Malaysia": "🇲🇾", "Ireland": "🇮🇪",
-    "Isle_of_Man": "🇮🇲", "Brunei": "🇧🇳", "Cyprus": "🇨🇾", "Kuwait": "🇰🇼",
-    "Romania": "🇷🇴", "Afghanistan": "🇦🇫", "Morocco": "🇲🇦", "Chile": "🇨🇱",
-    "Sweden": "🇸🇪", "Estonia": "🇪🇪", "Monaco": "🇲🇨", "Thailand": "🇹🇭",
+# Country name (as stored in DB) → ISO-3166-1 alpha-2 lowercase code
+# Used with the flag-icons CSS library: <span class="fi fi-{code}"></span>
+_FLAG_CODE_MAP = {
+    "Finland": "fi", "Germany": "de", "United_Kingdom": "gb",
+    "Netherlands": "nl", "Italy": "it", "United_States": "us",
+    "Belgium": "be", "Russia": "ru", "Brazil": "br", "Spain": "es",
+    "Austria": "at", "France": "fr", "Switzerland": "ch", "Turkey": "tr",
+    "Czech_Republic": "cz", "Argentina": "ar", "Hungary": "hu",
+    "Canada": "ca", "Portugal": "pt", "Poland": "pl", "Greece": "gr",
+    "Guernsey": "gg", "India": "in", "Australia": "au", "Ukraine": "ua",
+    "Norway": "no", "Serbia": "rs", "Denmark": "dk",
+    "Bosnia_and_Herzegovina": "ba", "Malaysia": "my", "Ireland": "ie",
+    "Isle_of_Man": "im", "Brunei": "bn", "Cyprus": "cy", "Kuwait": "kw",
+    "Romania": "ro", "Afghanistan": "af", "Morocco": "ma", "Chile": "cl",
+    "Sweden": "se", "Estonia": "ee", "Monaco": "mc", "Thailand": "th",
 }
 
 
-def _flag_emoji(flag_text: str | None) -> str:
+def _flag_code(flag_text: str | None) -> str:
+    """Return ISO-3166-1 alpha-2 code for use with flag-icons CSS, or ''."""
     if not flag_text:
         return ""
-    return _FLAG_MAP.get(flag_text, flag_text.replace("_", " "))
+    return _FLAG_CODE_MAP.get(flag_text, "")
 
 
 API_URL = (
@@ -366,7 +366,12 @@ def elo_heats():
           ORDER BY heat_elo DESC;
             """
         )
-        records = cur.fetchall()
+        raw = cur.fetchall()
+
+    records = [
+        {**r, "flag_code": _flag_code(r["driver_flag"])}
+        for r in raw
+    ]
 
     return render_template("elo_heats.html", records=records)
 
@@ -428,6 +433,7 @@ def race_detail(session_id: str):
                 position,
                 finish_time,
                 laps_completed,
+                fastest_lap,
                 elo_value,
                 elo_delta,
                 current_elo
@@ -462,6 +468,12 @@ def race_detail(session_id: str):
             winner_laps = r["laps_completed"]
             break
 
+    # Overall fastest lap in the session (for purple highlight)
+    overall_fastest = min(
+        (r["fastest_lap"] for r in rows if r.get("fastest_lap") is not None),
+        default=None,
+    )
+
     results = []
     for row in rows:
         pos = row["position"]
@@ -478,19 +490,22 @@ def race_detail(session_id: str):
         else:
             time_display = _fmt_race_time(ft)
 
+        fl = row.get("fastest_lap")
         results.append(
             {
-                "position":    pos,
-                "driver_id":   row["steam_id"],
-                "driver_name": row["driver_name"],
-                "driver_flag": _flag_emoji(row["driver_flag"]),
-                "driver_clan": row["driver_clan"],
-                "vehicle":     row["vehicle_name"],
-                "finish_time": time_display,
-                "laps":        laps,
-                "elo_value":   row["elo_value"],
-                "elo_delta":   row["elo_delta"],
-                "current_elo": row["current_elo"],
+                "position":           pos,
+                "driver_id":          row["steam_id"],
+                "driver_name":        row["driver_name"],
+                "driver_flag":        _flag_code(row["driver_flag"]),
+                "driver_clan":        row["driver_clan"],
+                "vehicle":            row["vehicle_name"],
+                "finish_time":        time_display,
+                "laps":               laps,
+                "fastest_lap":        _fmt_lap_time(fl),
+                "is_overall_fastest": fl is not None and fl == overall_fastest,
+                "elo_value":          row["elo_value"],
+                "elo_delta":          row["elo_delta"],
+                "current_elo":        row["current_elo"],
             }
         )
 
@@ -511,7 +526,7 @@ def driver_profile(driver_id: int):
             SELECT steam_id, driver_name, driver_flag, driver_clan,
                    heat_elo, heat_total_races, heat_wins, heat_best_position,
                    heat_last_race_at, event_races, event_wins,
-                   hotlap_events, hotlap_total_laps, hotlap_alltime_best
+                   hotlap_events, hotlap_total_laps, hotlap_top5
               FROM mart.v_driver_profile
              WHERE steam_id = %s;
             """,
@@ -591,7 +606,7 @@ def driver_profile(driver_id: int):
         "driver.html",
         profile=profile,
         driver_id=driver_id,
-        flag_emoji=_flag_emoji(profile["driver_flag"]),
+        flag_code=_flag_code(profile["driver_flag"]),
         elo_chart_json=json.dumps(elo_chart),
         last_races=last_races,
     )
