@@ -13,7 +13,7 @@
         <p class="mb-1 text-muted small">
             {{ meta.utc_start_time.strftime('%d.%m.%Y %H:%M') }}
             &nbsp;·&nbsp;
-            {% if meta.server == 'heats' %}
+            {% if meta.server == 'tripleheat' %}
             <span class="badge bg-danger">TripleHeat</span>
             {% elif meta.server == 'casual_heat' %}
             <span class="badge bg-primary">Casual-Heat</span>
@@ -39,7 +39,7 @@
                 <th>Car</th>
                 <th>Time</th>
                 <th>Laps</th>
-                {% if meta.server == 'heats' %}
+                {% if meta.server == 'tripleheat' %}
                 <th data-bs-toggle="tooltip" title="ELO after this race">ELO</th>
                 <th data-bs-toggle="tooltip" title="ELO change from this race">&#916;</th>
                 {% endif %}
@@ -61,7 +61,7 @@
                 <td class="text-muted small">{{ r.vehicle or '—' }}</td>
                 <td>{{ r.finish_time }}</td>
                 <td>{{ r.laps if r.laps else '—' }}</td>
-                {% if meta.server == 'heats' %}
+                {% if meta.server == 'tripleheat' %}
                 <td>
                     {% if r.elo_value %}{{ "%.1f"|format(r.elo_value) }}{% else %}—{% endif %}
                 </td>

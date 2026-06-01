@@ -76,7 +76,7 @@ API_URL = (
     f"?key={os.environ.get('TSURA_STEAM_API_KEY','')}&filter=appid%5C1478340"
 )
 
-_RACE_SERVERS = ("events", "heats", "casual_heat")
+_RACE_SERVERS = ("events", "tripleheat", "casual_heat")
 
 
 # --------------------------------------------------------------------------- #
@@ -373,7 +373,7 @@ def races():
             return cur.fetchall()
 
         summary_events = _last_day_summary("events")
-        summary_heats = _last_day_summary("heats")
+        summary_heats = _last_day_summary("tripleheat")
         summary_casual = _last_day_summary("casual_heat")
 
         # Full list: all race servers, human participants >= 4
@@ -388,7 +388,7 @@ def races():
                 STRING_AGG(DISTINCT vehicle_name, ', ' ORDER BY vehicle_name) AS cars,
                 MIN(driver_name) FILTER (WHERE position = 1) AS winner
               FROM mart.v_race_results
-             WHERE server IN ('events', 'heats', 'casual_heat')
+             WHERE server IN ('events', 'tripleheat', 'casual_heat')
           GROUP BY session_id, utc_start_time, server, track_name
             HAVING MIN(human_participant_count) >= 4
           ORDER BY utc_start_time DESC
@@ -533,7 +533,7 @@ def driver_profile(driver_id: int):
             SELECT utc_start_time, elo_value, elo_delta, track_name
               FROM mart.v_race_results
              WHERE steam_id = %s
-               AND server = 'heats'
+               AND server = 'tripleheat'
                AND elo_value IS NOT NULL
           ORDER BY utc_start_time ASC;
             """,
