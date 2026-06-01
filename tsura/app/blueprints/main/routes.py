@@ -79,12 +79,39 @@ API_URL = (
 _RACE_SERVERS = ("events", "tripleheat", "casual_heat")
 
 
+def _last_day_summary(cur, server: str) -> list:
+    """All races on the most recent race day for a given server, max 5."""
+    cur.execute(
+        """
+        WITH last_date AS (
+            SELECT DATE(MAX(utc_start_time) AT TIME ZONE 'Europe/Berlin') AS d
+            FROM mart.v_race_results
+            WHERE server = %(server)s
+        )
+        SELECT DISTINCT
+            r.session_id,
+            r.utc_start_time,
+            r.track_name,
+            MIN(r.human_participant_count) AS human_count,
+            MIN(r.driver_name) FILTER (WHERE r.position = 1) AS winner
+        FROM mart.v_race_results r, last_date
+        WHERE r.server = %(server)s
+          AND DATE(r.utc_start_time AT TIME ZONE 'Europe/Berlin') = last_date.d
+        GROUP BY r.session_id, r.utc_start_time, r.track_name
+        ORDER BY r.utc_start_time ASC
+        LIMIT 5;
+        """,
+        {"server": server},
+    )
+    return cur.fetchall()
+
+
 # --------------------------------------------------------------------------- #
 #  INDEX                                                                      #
 # --------------------------------------------------------------------------- #
 @main_bp.route("/")
 def index():
-    """Landing page: current hotlap combo and server status."""
+    """Landing page: per-server last-day summaries, hotlap combo, server status."""
     conn = db_pool.get_conn()
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
         cur.execute(
@@ -103,6 +130,10 @@ def index():
             """
         )
         hotlap = cur.fetchone()
+
+        summary_events = _last_day_summary(cur, "events")
+        summary_heats  = _last_day_summary(cur, "tripleheat")
+        summary_casual = _last_day_summary(cur, "casual_heat")
 
     # server list -----------------------------------------------------------
     servers: list[dict] = []
@@ -126,6 +157,9 @@ def index():
         "index.html",
         servers=servers,
         hotlap=hotlap,
+        summary_events=summary_events,
+        summary_heats=summary_heats,
+        summary_casual=summary_casual,
     )
 
 
@@ -342,41 +376,9 @@ def elo_heats():
 # --------------------------------------------------------------------------- #
 @main_bp.route("/races")
 def races():
-    """Race results: per-server last-day summaries + full filtered list."""
+    """Race results: full list (≥4 human participants), newest first."""
     conn = db_pool.get_conn()
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-
-        def _last_day_summary(server: str) -> list:
-            """All races on the most recent race day for a given server, max 5."""
-            cur.execute(
-                """
-                WITH last_date AS (
-                    SELECT DATE(MAX(utc_start_time) AT TIME ZONE 'Europe/Berlin') AS d
-                    FROM mart.v_race_results
-                    WHERE server = %(server)s
-                )
-                SELECT DISTINCT
-                    r.session_id,
-                    r.utc_start_time,
-                    r.track_name,
-                    MIN(r.human_participant_count) AS human_count,
-                    MIN(r.driver_name) FILTER (WHERE r.position = 1) AS winner
-                FROM mart.v_race_results r, last_date
-                WHERE r.server = %(server)s
-                  AND DATE(r.utc_start_time AT TIME ZONE 'Europe/Berlin') = last_date.d
-                GROUP BY r.session_id, r.utc_start_time, r.track_name
-                ORDER BY r.utc_start_time ASC
-                LIMIT 5;
-                """,
-                {"server": server},
-            )
-            return cur.fetchall()
-
-        summary_events = _last_day_summary("events")
-        summary_heats = _last_day_summary("tripleheat")
-        summary_casual = _last_day_summary("casual_heat")
-
-        # Full list: all race servers, human participants >= 4
         cur.execute(
             """
             SELECT
@@ -397,13 +399,7 @@ def races():
         )
         race_list = cur.fetchall()
 
-    return render_template(
-        "races.html",
-        races=race_list,
-        summary_events=summary_events,
-        summary_heats=summary_heats,
-        summary_casual=summary_casual,
-    )
+    return render_template("races.html", races=race_list)
 
 
 # --------------------------------------------------------------------------- #
@@ -579,21 +575,17 @@ def driver_profile(driver_id: int):
         for r in last_races_raw
     ]
 
-    # Build ELO chart data: start with bootstrap value, then live entries
+    # Build ELO chart data: anchor at 1000 start, then one point per race
     elo_chart = []
-    if profile["heat_elo"] is not None and not elo_rows:
-        # Only bootstrap, no live history yet
-        elo_chart.append({
-            "label": "Start",
-            "elo": round(profile["heat_elo"], 1),
-        })
-    for r in elo_rows:
-        elo_chart.append({
-            "label": r["utc_start_time"].strftime("%d.%m.%y"),
-            "elo": round(float(r["elo_value"]), 1),
-            "delta": round(float(r["elo_delta"]), 1) if r["elo_delta"] else None,
-            "track": r["track_name"],
-        })
+    if elo_rows:
+        elo_chart.append({"label": "Start", "elo": 1000.0})
+        for r in elo_rows:
+            elo_chart.append({
+                "label": r["utc_start_time"].strftime("%d.%m.%y"),
+                "elo": round(float(r["elo_value"]), 1),
+                "delta": round(float(r["elo_delta"]), 1) if r["elo_delta"] else None,
+                "track": r["track_name"],
+            })
 
     return render_template(
         "driver.html",
