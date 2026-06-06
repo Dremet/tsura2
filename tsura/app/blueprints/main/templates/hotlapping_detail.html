@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}TSURA | Hotlapping {{ event_number }}{% endblock %}
+{% block title %}TSURA | {{ track_name }}{% endblock %}
 {% block content %}
 
 <!-- Theoretical best lap card ----------------------------------------- -->
@@ -29,7 +29,7 @@
                 <th>Car</th>
                 <th>Best&nbsp;Lap</th>
                 <th>Diff.</th>
-                <th data-bs-toggle="tooltip" title="✓ = 5 laps within 1 % ★ = 5 laps within 0.2 %">Cons.</th>
+                <th data-bs-toggle="tooltip" title="✓ = 5+ laps within 1% of best | ★ = 5+ laps within 0.3% of best">Cons.</th>
                 {% for i in range(n_sectors) %}
                 <th>S{{ i+1 }}</th>
                 {% endfor %}
