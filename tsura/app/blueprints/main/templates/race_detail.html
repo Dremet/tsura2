@@ -82,5 +82,103 @@
     </table>
 </div>
 
+
+<!-- Tire stints -------------------------------------------------------- -->
+{% if stint_drivers and max_race_laps > 0 %}
+{%- set lm = 115 %}
+{%- set rw = 570 %}
+{%- set rh = 30 %}
+{%- set bh = 18 %}
+{%- set n  = stint_drivers | length %}
+{%- set ah = 20 %}
+{%- set svgw = lm + rw + 6 %}
+{%- set svgh = n * rh + ah %}
+<div class="card bg-dark mb-4">
+  <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <span class="fw-semibold">Tire Stints</span>
+    <span class="d-flex align-items-center gap-3 small text-secondary">
+      <span class="d-flex align-items-center gap-1">
+        <svg width="12" height="12" style="flex-shrink:0"><rect width="12" height="12" rx="2" fill="#ff6060"/></svg> Soft
+      </span>
+      <span class="d-flex align-items-center gap-1">
+        <svg width="12" height="12" style="flex-shrink:0"><rect width="12" height="12" rx="2" fill="#ffd700"/></svg> Medium
+      </span>
+      <span class="d-flex align-items-center gap-1">
+        <svg width="12" height="12" style="flex-shrink:0"><rect width="12" height="12" rx="2" fill="#e0e0e0"/></svg> Hard
+      </span>
+    </span>
+  </div>
+  <div class="card-body p-2" style="overflow-x:auto;">
+    <svg viewBox="0 0 {{ svgw }} {{ svgh }}"
+         style="width:100%;min-width:{{ svgw }}px;display:block;"
+         xmlns="http://www.w3.org/2000/svg">
+
+      <!-- Vertical grid lines + lap-axis labels -->
+      {% for lap in range(0, max_race_laps + 1) %}
+        {% if lap % 5 == 0 %}
+          {%- set gx = lm + (lap / max_race_laps) * rw %}
+          <line x1="{{ gx | round(1) }}" y1="0"
+                x2="{{ gx | round(1) }}" y2="{{ n * rh }}"
+                stroke="#2e2e2e" stroke-width="1"/>
+          <text x="{{ gx | round(1) }}" y="{{ svgh - 4 }}"
+                text-anchor="middle" fill="#666" font-size="9"
+                font-family="'Segoe UI',Arial,sans-serif">{{ lap }}</text>
+        {% endif %}
+      {% endfor %}
+
+      <!-- Driver rows -->
+      {% for drv in stint_drivers %}
+        {%- set yi  = loop.index0 %}
+        {%- set yc  = (yi + 0.5) * rh %}
+
+        <!-- Driver name -->
+        <text x="{{ lm - 5 }}" y="{{ (yc + 4) | round(1) }}"
+              text-anchor="end" fill="#dee2e6" font-size="11"
+              font-family="'Segoe UI',Arial,sans-serif">{{ drv.name | truncate(14, true, '…') }}</text>
+
+        <!-- Stints -->
+        {% for st in drv.stints %}
+          {%- set x1  = lm + (st.lap_start / max_race_laps) * rw %}
+          {%- set x2  = lm + (st.lap_end   / max_race_laps) * rw %}
+          {%- set bw  = x2 - x1 %}
+          {%- set gap = 1 if not loop.first else 0 %}
+          {%- if st.compound_name == 'Soft' %}
+            {%- set col = '#ff6060' %}
+          {%- elif st.compound_name == 'Medium' %}
+            {%- set col = '#ffd700' %}
+          {%- elif st.compound_name == 'Hard' %}
+            {%- set col = '#e0e0e0' %}
+          {%- else %}
+            {%- set col = '#8888aa' %}
+          {%- endif %}
+          {%- set laps_in_stint = st.lap_end - st.lap_start %}
+
+          <g>
+            <title>{{ st.compound_name }} · laps {{ st.lap_start + 1 }}–{{ st.lap_end }} ({{ laps_in_stint }} laps) · wear {{ "%.0f"|format(st.wear_pct) }}%</title>
+            <rect x="{{ (x1 + gap) | round(1) }}" y="{{ (yc - bh / 2) | round(1) }}"
+                  width="{{ [bw - gap, 0] | max | round(1) }}" height="{{ bh }}"
+                  rx="2" ry="2" fill="{{ col }}" style="cursor:default;"/>
+            {% if bw > 18 %}
+            <text x="{{ (x1 + gap + bw / 2) | round(1) }}" y="{{ (yc + 4) | round(1) }}"
+                  text-anchor="middle" fill="#1a1a1a"
+                  font-size="9" font-weight="bold"
+                  font-family="'Segoe UI',Arial,sans-serif"
+                  style="pointer-events:none;">{{ laps_in_stint }}</text>
+            {% endif %}
+          </g>
+          {% if bw > 26 and st.wear_pct %}
+          <text x="{{ (x2 - 2) | round(1) }}" y="{{ (yc - bh / 2 - 1) | round(1) }}"
+                text-anchor="end" fill="#999" font-size="7.5"
+                font-family="'Segoe UI',Arial,sans-serif"
+                style="pointer-events:none;">{{ "%.0f"|format(st.wear_pct) }}%</text>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+
+    </svg>
+  </div>
+</div>
+{% endif %}
+
 {% endif %}
 {% endblock %}

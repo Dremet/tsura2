@@ -7,7 +7,7 @@ import hmac
 import json
 import os
 import re
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from typing import List
 
 import psycopg
@@ -21,7 +21,7 @@ from ...extensions import db_pool, make_csrf_token
 # ── Input validation patterns for profile edit ───────────────────────────────
 _TEAM_TAG_RE    = re.compile(r"^[A-Za-z0-9]{1,3}$")
 _WORKSHOP_RE    = re.compile(
-    r"^https://steamcommunity\.com/sharedfiles/filedetails/\?id=\d+$"
+    r"^https://steamcommunity\.com/(sharedfiles|workshop)/filedetails/\?id=\d+$"
 )
 _TWITCH_RE      = re.compile(
     r"^https://(www\.)?twitch\.tv/[A-Za-z0-9_]{1,25}/?$"
@@ -474,7 +474,8 @@ def race_detail(session_id: str):
 
     if not rows:
         return render_template("race_detail.html", session_id=session_id,
-                               meta=None, results=[])
+                               meta=None, results=[],
+                               stint_drivers=[], max_race_laps=0)
 
     meta = {
         "session_id":        rows[0]["session_id"],
@@ -536,7 +537,52 @@ def race_detail(session_id: str):
             }
         )
 
-    return render_template("race_detail.html", meta=meta, results=results)
+    # ── Tire stint data ──────────────────────────────────────────────────────
+    conn2 = db_pool.get_conn()
+    with conn2.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        cur.execute(
+            """
+            SELECT steam_id, driver_name, finish_position, race_laps,
+                   stint_number, compound_name, lap_start, lap_end, wear_pct
+              FROM mart.v_tire_stints
+             WHERE session_id = %s
+          ORDER BY finish_position NULLS LAST, stint_number;
+            """,
+            (session_id,),
+        )
+        stint_rows = cur.fetchall()
+
+    max_race_laps = 0
+    driver_order: dict = OrderedDict()
+    stints_by_driver: dict = defaultdict(list)
+    for row in stint_rows:
+        sid_ = row["steam_id"]
+        if sid_ not in driver_order:
+            driver_order[sid_] = {"name": row["driver_name"], "pos": row["finish_position"]}
+        stints_by_driver[sid_].append({
+            "stint_number":  row["stint_number"],
+            "compound_name": row["compound_name"],
+            "lap_start":     row["lap_start"],
+            "lap_end":       row["lap_end"],
+            "wear_pct":      float(row["wear_pct"] or 0),
+        })
+        max_race_laps = max(max_race_laps, row["race_laps"] or 0)
+
+    stint_drivers = sorted(
+        [
+            {
+                "steam_id": sid_,
+                "name":     info["name"],
+                "pos":      info["pos"],
+                "stints":   sorted(stints_by_driver[sid_], key=lambda s: s["stint_number"]),
+            }
+            for sid_, info in driver_order.items()
+        ],
+        key=lambda d: (d["pos"] or 999),
+    )
+
+    return render_template("race_detail.html", meta=meta, results=results,
+                           stint_drivers=stint_drivers, max_race_laps=max_race_laps)
 
 
 # --------------------------------------------------------------------------- #
