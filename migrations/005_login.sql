@@ -70,7 +70,7 @@ SELECT
     rp.vehicle_guid,
     v.name             AS vehicle_name,
     rp.position,
-    rp.finish_time,
+    rp.finish_time - COALESCE(rs.race_start_offset_s, 0) AS finish_time,
     rp.laps_completed,
     rs.participant_count,
     eh.elo_value,
