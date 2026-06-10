@@ -458,6 +458,7 @@ def race_detail(session_id: str):
                 display_tag,
                 vehicle_name,
                 position,
+                start_position,
                 finish_time,
                 laps_completed,
                 fastest_lap,
@@ -519,9 +520,13 @@ def race_detail(session_id: str):
             time_display = _fmt_race_time(ft)
 
         fl = row.get("fastest_lap")
+        start_pos = row.get("start_position")
+        pos_diff = (start_pos - pos) if (start_pos is not None and pos is not None) else None
         results.append(
             {
                 "position":           pos,
+                "start_position":     start_pos,
+                "pos_diff":           pos_diff,
                 "driver_id":          row["steam_id"],
                 "driver_name":        row["driver_name"],
                 "driver_flag":        _flag_code(row["driver_flag"]),
