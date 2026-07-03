@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}TSU Career — TSURA{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+  <h1 class="mb-0">TSU Career</h1>
+  <div>
+    <a href="{{ url_for('career.standings') }}" class="btn btn-outline-light btn-sm">Standings</a>
+    <a href="{{ url_for('career.upgrades') }}" class="btn btn-outline-light btn-sm">Upgrades</a>
+    <a href="{{ url_for('career.results') }}" class="btn btn-outline-light btn-sm">Results</a>
+    {% if is_admin %}<a href="{{ url_for('career.admin') }}" class="btn btn-warm-red btn-sm">Admin</a>{% endif %}
+  </div>
+</div>
+
+<div class="card bg-dark border-secondary mb-4">
+  <div class="card-body">
+    <p class="mb-2">Welcome to <strong>TSU Career</strong> — a seasonal championship on the TSURA Career
+      server. Everyone starts a season in the <strong>same base car</strong> and earns
+      <strong>credits</strong> by racing (the slower you finish, the more you get, to keep the field
+      close). Spend credits on the <a href="{{ url_for('career.garage') }}">website garage</a> to upgrade
+      your car's Top Speed, Acceleration, Braking and Downforce. Your tuned car is generated and forced
+      onto you automatically at race night. Championship points are separate from credits.</p>
+    <p class="mb-0 text-secondary">Races run weekly on the Career server — two races per evening, each
+      with a short qualifying. Career results do not affect ELO.</p>
+  </div>
+</div>
+
+{% if not season %}
+  <div class="alert alert-secondary">No active season right now. Check back soon.</div>
+{% else %}
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="card bg-dark border-danger h-100">
+        <div class="card-body">
+          <h5 class="card-title">{{ season.name }}
+            <span class="badge bg-success">Active</span></h5>
+          <p class="mb-1">Base car: <strong>{{ season.base_vehicle_name }}</strong></p>
+          <p class="mb-1">Starting credits: <strong>{{ season.start_credits }}</strong></p>
+          <p class="mb-0 text-secondary">Race payout: {{ season.credit_first }} (P1) …
+            {{ season.credit_last }} (last)</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card bg-dark border-secondary h-100">
+        <div class="card-body d-flex flex-column justify-content-center">
+          {% if current_steam_id and enrolled %}
+            <p class="mb-2">Your credit balance: <span class="fs-4 text-warning">{{ balance }}</span></p>
+            <a href="{{ url_for('career.garage') }}" class="btn btn-warm-red">Go to your Garage</a>
+          {% elif current_steam_id %}
+            <p class="mb-2">You are not enrolled in this season yet.</p>
+            <form method="post" action="{{ url_for('career.join') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="btn btn-warm-red">Join TSU Career</button>
+            </form>
+          {% else %}
+            <p class="mb-2">Log in with Steam to join the championship and tune your car.</p>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-warm-red">Login via Steam</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h4>Standings</h4>
+  {% if standings %}
+  <div class="table-responsive">
+    <table class="table table-dark table-hover align-middle">
+      <thead><tr><th>#</th><th>Driver</th><th class="text-end">Races</th>
+        <th class="text-end">Wins</th><th class="text-end">Poles</th>
+        <th class="text-end">FL</th><th class="text-end">Points</th></tr></thead>
+      <tbody>
+        {% for r in standings %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{% if r.driver_flag %}<span class="fi fi-xx me-1"></span>{% endif %}
+            {% if r.display_tag %}<span class="badge bg-secondary">{{ r.display_tag }}</span> {% endif %}
+            {{ r.driver_name }}</td>
+          <td class="text-end">{{ r.races }}</td>
+          <td class="text-end">{{ r.wins }}</td>
+          <td class="text-end">{{ r.poles }}</td>
+          <td class="text-end">{{ r.fastest_laps }}</td>
+          <td class="text-end fw-bold">{{ r.points_total }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <a href="{{ url_for('career.standings') }}" class="btn btn-outline-light btn-sm">Full standings →</a>
+  {% else %}
+  <p class="text-secondary">No races yet this season.</p>
+  {% endif %}
+{% endif %}
+{% endblock %}

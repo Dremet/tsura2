@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Career Admin — TSURA{% endblock %}
+{% block content %}
+<h1 class="mb-3">Career Admin</h1>
+
+<div class="card bg-dark border-danger mb-4">
+  <div class="card-body">
+    <h5 class="card-title">New season</h5>
+    <form method="post" action="{{ url_for('career.admin_create_season') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="row g-2">
+        <div class="col-md-4"><label class="form-label small">Name</label>
+          <input name="name" class="form-control bg-dark text-white border-secondary" required></div>
+        <div class="col-md-4"><label class="form-label small">Base vehicle name (in-game)</label>
+          <input name="base_vehicle_name" class="form-control bg-dark text-white border-secondary" required></div>
+        <div class="col-md-4"><label class="form-label small">Base .veh path (on Career server)</label>
+          <input name="base_vehicle_veh" class="form-control bg-dark text-white border-secondary"
+                 placeholder="/home/career/career_base/season1.veh" required></div>
+        <div class="col-md-4"><label class="form-label small">Start credits</label>
+          <input type="number" name="start_credits" value="1000"
+                 class="form-control bg-dark text-white border-secondary"></div>
+        <div class="col-md-4"><label class="form-label small">Credits P1</label>
+          <input type="number" name="credit_first" value="100"
+                 class="form-control bg-dark text-white border-secondary"></div>
+        <div class="col-md-4"><label class="form-label small">Credits last (≥ P1)</label>
+          <input type="number" name="credit_last" value="300"
+                 class="form-control bg-dark text-white border-secondary"></div>
+      </div>
+
+      <h6 class="mt-3">Upgrade axes (base value seeded from the base car; step per tier; max tier; cost/tier)</h6>
+      <div class="table-responsive">
+        <table class="table table-dark table-sm align-middle">
+          <thead><tr><th>Axis</th><th>Base value</th><th>Step / tier</th><th>Max tier</th><th>Cost / tier</th></tr></thead>
+          <tbody>
+            {% for a in axes %}
+            <tr>
+              <td>{{ axis_labels[a] }}</td>
+              <td><input name="{{ a }}_base" type="number" step="any" value="0"
+                     class="form-control form-control-sm bg-dark text-white border-secondary"></td>
+              <td><input name="{{ a }}_step" type="number" step="any" value="0"
+                     class="form-control form-control-sm bg-dark text-white border-secondary"></td>
+              <td><input name="{{ a }}_max" type="number" value="5"
+                     class="form-control form-control-sm bg-dark text-white border-secondary"></td>
+              <td><input name="{{ a }}_cost" type="number" value="100"
+                     class="form-control form-control-sm bg-dark text-white border-secondary"></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <button class="btn btn-warm-red">Create season (draft)</button>
+    </form>
+  </div>
+</div>
+
+<h5>Seasons</h5>
+<div class="table-responsive">
+  <table class="table table-dark align-middle">
+    <thead><tr><th>Name</th><th>Status</th><th>Base car</th><th class="text-end">Start / P1 / last</th>
+      <th class="text-end">Enrolled</th><th></th></tr></thead>
+    <tbody>
+      {% for s in seasons %}
+      <tr>
+        <td>{{ s.name }}</td>
+        <td>
+          {% if s.status == 'active' %}<span class="badge bg-success">active</span>
+          {% elif s.status == 'draft' %}<span class="badge bg-secondary">draft</span>
+          {% else %}<span class="badge bg-dark border border-secondary">finished</span>{% endif %}
+        </td>
+        <td>{{ s.base_vehicle_name }}</td>
+        <td class="text-end">{{ s.start_credits }} / {{ s.credit_first }} / {{ s.credit_last }}</td>
+        <td class="text-end">{{ s.enrolled }}</td>
+        <td class="text-end">
+          {% if s.status != 'active' %}
+          <form method="post" action="{{ url_for('career.admin_activate', season_id=s.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn-warm-red btn-sm">Activate</button>
+          </form>
+          {% endif %}
+          {% if s.status == 'active' %}
+          <form method="post" action="{{ url_for('career.admin_finish', season_id=s.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn-outline-secondary btn-sm">Finish</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-secondary">No seasons yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

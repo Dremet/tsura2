@@ -34,6 +34,7 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('main.elo_heats') }}">ELO Heats</a>
                     </li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('career.home') }}">Career</a></li>
                 </ul>
                 <!-- Auth -->
                 <div class="d-flex align-items-center ms-3">
@@ -52,7 +53,19 @@
     </nav>
 
     <div class="container-fluid py-4 px-3">
-        <div class="mx-auto" style="max-width: 1920px;">{% block content %}{% endblock %}</div>
+        <div class="mx-auto" style="max-width: 1920px;">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

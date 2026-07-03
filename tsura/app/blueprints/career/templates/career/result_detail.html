@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Career Race — TSURA{% endblock %}
+{% block content %}
+<a href="{{ url_for('career.results') }}" class="btn btn-outline-light btn-sm mb-3">← All results</a>
+<h1 class="mb-1">{{ header.track_name }}</h1>
+<p class="text-secondary">{{ header.utc_start_time.strftime('%Y-%m-%d %H:%M UTC') }}
+  · {{ header.participant_count }} drivers</p>
+<div class="table-responsive">
+  <table class="table table-dark table-hover align-middle">
+    <thead><tr><th>Pos</th><th>Grid</th><th>Driver</th><th class="text-end">Laps</th>
+      <th class="text-end">Points</th><th class="text-end">Credits</th><th></th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="fw-bold">{{ r.position }}</td>
+        <td>{{ r.start_position or '—' }}{% if r.is_pole %} <span class="badge bg-warning text-dark">P</span>{% endif %}</td>
+        <td>{% if r.display_tag %}<span class="badge bg-secondary">{{ r.display_tag }}</span> {% endif %}
+          {{ r.driver_name }}{% if r.is_fastest_lap %} <span class="badge bg-info text-dark">FL</span>{% endif %}</td>
+        <td class="text-end">{{ r.laps_completed }}</td>
+        <td class="text-end fw-bold">{{ r.points_total if r.points_total is not none else '—' }}</td>
+        <td class="text-end text-warning">{{ r.credits if r.credits is not none else '—' }}</td>
+        <td></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-secondary small">P = pole (qualifying win, +1 pt) · FL = fastest lap (+1 pt).
+  Credits: slower finishers earn more. Career races do not affect ELO.</p>
+{% endblock %}

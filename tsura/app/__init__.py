@@ -11,6 +11,7 @@ from flask import Flask, g, request
 from .extensions import db_pool, make_csrf_token
 from .blueprints.main import main_bp
 from .blueprints.auth import auth_bp
+from .blueprints.career import career_bp
 
 
 def create_app() -> Flask:
@@ -71,5 +72,6 @@ def create_app() -> Flask:
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(career_bp)
 
     return app

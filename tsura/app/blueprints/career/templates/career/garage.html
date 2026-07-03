@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}My Garage — TSU Career{% endblock %}
+{% block content %}
+<h1 class="mb-3">My Garage</h1>
+
+{% if not season %}
+  <div class="alert alert-secondary">There is no active season right now.</div>
+{% elif not enrolled %}
+  <div class="card bg-dark border-secondary">
+    <div class="card-body">
+      <p>You are not enrolled in <strong>{{ season.name }}</strong> yet.</p>
+      <form method="post" action="{{ url_for('career.join') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn-warm-red">Join TSU Career</button>
+      </form>
+    </div>
+  </div>
+{% else %}
+  <div class="d-flex align-items-center mb-3">
+    <div class="me-4">Season: <strong>{{ season.name }}</strong> · Base car:
+      <strong>{{ season.base_vehicle_name }}</strong></div>
+    <div class="ms-auto fs-5">Credits: <span class="text-warning fw-bold">{{ balance }}</span></div>
+  </div>
+
+  <div class="row g-3">
+    {% for it in items %}
+    <div class="col-md-6 col-xl-3">
+      <div class="card bg-dark border-secondary h-100">
+        <div class="card-body d-flex flex-column">
+          <h5 class="card-title">{{ it.label }}</h5>
+          <p class="mb-1">Tier <span class="badge bg-danger">{{ it.tier }}</span> / {{ it.max_tier }}</p>
+          <p class="mb-1 text-secondary small">Now: {{ '%.2f'|format(it.current_value) }}
+            {% if not it.maxed %}→ Next: {{ '%.2f'|format(it.next_value) }}{% endif %}</p>
+          <div class="progress my-2" style="height:6px;">
+            <div class="progress-bar bg-danger" role="progressbar"
+                 style="width: {{ (100 * it.tier / it.max_tier) if it.max_tier else 0 }}%"></div>
+          </div>
+          <div class="mt-auto">
+            {% if it.maxed %}
+              <button class="btn btn-outline-secondary btn-sm w-100" disabled>Maxed out</button>
+            {% else %}
+            <form method="post" action="{{ url_for('career.buy') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="axis" value="{{ it.axis }}">
+              <button class="btn btn-warm-red btn-sm w-100" {% if not it.can_buy %}disabled{% endif %}>
+                Upgrade — {{ it.cost }} cr
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="text-secondary small mt-3">Upgrades apply from the next race night. Your tuned car is
+    generated automatically and forced onto you in-game by Steam ID.</p>
+{% endif %}
+{% endblock %}
