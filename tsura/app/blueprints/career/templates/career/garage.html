@@ -3,7 +3,15 @@
 {% block content %}
 <h1 class="mb-3">My Garage</h1>
 
-{% if not season %}
+{% if not_allowed %}
+  <div class="card bg-dark border-warning">
+    <div class="card-body">
+      <h5 class="card-title">TSU Career is in closed beta</h5>
+      <p class="mb-0">Your account isn't on the beta participant list yet. Ask an
+        admin to add your Steam ID, then you'll be able to join and tune your car here.</p>
+    </div>
+  </div>
+{% elif not season %}
   <div class="alert alert-secondary">There is no active season right now.</div>
 {% elif not enrolled %}
   <div class="card bg-dark border-secondary">

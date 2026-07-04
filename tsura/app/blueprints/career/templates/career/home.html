@@ -46,12 +46,15 @@
           {% if current_steam_id and enrolled %}
             <p class="mb-2">Your credit balance: <span class="fs-4 text-warning">{{ balance }}</span></p>
             <a href="{{ url_for('career.garage') }}" class="btn btn-warm-red">Go to your Garage</a>
-          {% elif current_steam_id %}
+          {% elif current_steam_id and is_participant %}
             <p class="mb-2">You are not enrolled in this season yet.</p>
             <form method="post" action="{{ url_for('career.join') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button class="btn btn-warm-red">Join TSU Career</button>
             </form>
+          {% elif current_steam_id %}
+            <p class="mb-0">TSU Career is in <strong>closed beta</strong>. Ask an admin to add
+              your Steam ID to take part.</p>
           {% else %}
             <p class="mb-2">Log in with Steam to join the championship and tune your car.</p>
             <a href="{{ url_for('auth.login') }}" class="btn btn-warm-red">Login via Steam</a>

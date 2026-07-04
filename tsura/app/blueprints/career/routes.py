@@ -47,6 +47,16 @@ def _is_admin(steam_id) -> bool:
         return cur.fetchone() is not None
 
 
+def _is_participant(steam_id) -> bool:
+    """During the beta, only allow-listed Steam IDs may join / tune."""
+    if not steam_id:
+        return False
+    with _cur() as cur:
+        cur.execute("SELECT 1 FROM career.allowed_participants WHERE steam_id = %s",
+                    (steam_id,))
+        return cur.fetchone() is not None
+
+
 def _admin_required(f):
     @wraps(f)
     def wrapper(*a, **k):
@@ -100,7 +110,8 @@ def home():
                     balance = row["balance"] if row else None
     return render_template("career/home.html", season=season, standings=standings,
                            balance=balance, enrolled=enrolled,
-                           is_admin=_is_admin(g.get("current_steam_id")))
+                           is_admin=_is_admin(g.get("current_steam_id")),
+                           is_participant=_is_participant(g.get("current_steam_id")))
 
 
 @career_bp.route("/standings")
@@ -180,6 +191,8 @@ def result_detail(session_id):
 @_login_required
 def garage():
     sid = g.current_steam_id
+    if not _is_participant(sid):
+        return render_template("career/garage.html", season=None, not_allowed=True)
     with _cur() as cur:
         season = _active_season(cur)
         if not season:
@@ -225,6 +238,10 @@ def join():
     if not _csrf_ok():
         abort(403)
     sid = g.current_steam_id
+    if not _is_participant(sid):
+        flash("TSU Career is invite-only during the beta. Ask an admin to add you.",
+              "warning")
+        return redirect(url_for("career.home"))
     conn = db_pool.get_conn()
     with conn.cursor() as cur:
         cur.execute("SELECT id FROM career.seasons WHERE status = 'active' LIMIT 1")
@@ -302,8 +319,10 @@ def admin():
             cur.execute("SELECT COUNT(*) AS n FROM career.enrollments WHERE season_id = %s",
                         (s["id"],))
             s["enrolled"] = cur.fetchone()["n"]
+        cur.execute("SELECT * FROM mart.v_career_participants ORDER BY added_at DESC")
+        participants = cur.fetchall()
     return render_template("career/admin.html", seasons=seasons, axes=AXES,
-                           axis_labels=AXIS_LABELS)
+                           axis_labels=AXIS_LABELS, participants=participants)
 
 
 @career_bp.route("/admin/season", methods=["POST"])
@@ -380,4 +399,87 @@ def admin_finish(season_id):
                     "WHERE id=%s", (season_id,))
     conn.commit()
     flash("Season finished.", "success")
+    return redirect(url_for("career.admin"))
+
+
+# --------------------------------------------------- beta participant allowlist
+@career_bp.route("/admin/participants/add", methods=["POST"])
+@_admin_required
+def admin_add_participant():
+    if not _csrf_ok():
+        abort(403)
+    raw = request.form.get("steam_id", "").strip()
+    note = request.form.get("note", "").strip() or None
+    if not raw.isdigit() or len(raw) < 17:
+        flash("Enter a valid SteamID64 (17 digits).", "danger")
+        return redirect(url_for("career.admin"))
+    conn = db_pool.get_conn()
+    with conn.cursor() as cur:
+        cur.execute("INSERT INTO career.allowed_participants (steam_id, note, added_by) "
+                    "VALUES (%s, %s, %s) ON CONFLICT (steam_id) DO UPDATE SET note=EXCLUDED.note",
+                    (int(raw), note, g.current_steam_id))
+    conn.commit()
+    flash("Participant added to the beta.", "success")
+    return redirect(url_for("career.admin"))
+
+
+@career_bp.route("/admin/participants/remove", methods=["POST"])
+@_admin_required
+def admin_remove_participant():
+    if not _csrf_ok():
+        abort(403)
+    raw = request.form.get("steam_id", "").strip()
+    if not raw.isdigit():
+        abort(400)
+    conn = db_pool.get_conn()
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM career.allowed_participants WHERE steam_id = %s",
+                    (int(raw),))
+    conn.commit()
+    flash("Participant removed from the beta.", "success")
+    return redirect(url_for("career.admin"))
+
+
+# ----------------------------------------------- delete season (two confirmations)
+@career_bp.route("/admin/season/<int:season_id>/delete", methods=["POST"])
+@_admin_required
+def admin_delete_season(season_id):
+    """First confirmation: show a dedicated page that requires typing the name."""
+    if not _csrf_ok():
+        abort(403)
+    with _cur() as cur:
+        cur.execute("SELECT * FROM career.seasons WHERE id = %s", (season_id,))
+        season = cur.fetchone()
+        if not season:
+            abort(404)
+        cur.execute("SELECT COUNT(*) AS n FROM career.enrollments WHERE season_id=%s",
+                    (season_id,))
+        enrolled = cur.fetchone()["n"]
+        cur.execute("SELECT COUNT(*) AS n FROM career.race_rewards WHERE season_id=%s",
+                    (season_id,))
+        rewards = cur.fetchone()["n"]
+    return render_template("career/admin_delete.html", season=season,
+                           enrolled=enrolled, rewards=rewards)
+
+
+@career_bp.route("/admin/season/<int:season_id>/delete/confirm", methods=["POST"])
+@_admin_required
+def admin_delete_season_confirm(season_id):
+    """Second confirmation: the typed name must match exactly."""
+    if not _csrf_ok():
+        abort(403)
+    typed = request.form.get("confirm_name", "")
+    conn = db_pool.get_conn()
+    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        cur.execute("SELECT name FROM career.seasons WHERE id = %s", (season_id,))
+        row = cur.fetchone()
+        if not row:
+            abort(404)
+        if typed != row["name"]:
+            flash("The typed name did not match — season was NOT deleted.", "danger")
+            return redirect(url_for("career.admin"))
+        # cascades: upgrade_axes, enrollments, driver_upgrades, race_rewards
+        cur.execute("DELETE FROM career.seasons WHERE id = %s", (season_id,))
+    conn.commit()
+    flash(f"Season '{row['name']}' was permanently deleted.", "success")
     return redirect(url_for("career.admin"))

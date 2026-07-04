@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Delete season — TSURA{% endblock %}
+{% block content %}
+<h1 class="mb-3 text-danger">Delete season</h1>
+<div class="card bg-dark border-danger">
+  <div class="card-body">
+    <p>You are about to <strong>permanently delete</strong> the season
+      <strong>{{ season.name }}</strong>. This removes:</p>
+    <ul>
+      <li>{{ enrolled }} enrollment(s) and all their upgrades</li>
+      <li>{{ rewards }} computed race reward(s) — its standings and credit history</li>
+      <li>the season config and upgrade axes</li>
+    </ul>
+    <p class="text-secondary">The raw race results in the database are not touched, but they
+      will no longer be attributed to this season. This cannot be undone.</p>
+
+    <form method="post" action="{{ url_for('career.admin_delete_season_confirm', season_id=season.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="form-label">Type the season name <code>{{ season.name }}</code> to confirm:</label>
+      <input name="confirm_name" class="form-control bg-dark text-white border-danger mb-3"
+             autocomplete="off" required>
+      <button type="submit" class="btn btn-danger"
+              onclick="return confirm('Final confirmation: permanently delete {{ season.name }}?');">
+        Permanently delete this season
+      </button>
+      <a href="{{ url_for('career.admin') }}" class="btn btn-outline-light ms-2">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

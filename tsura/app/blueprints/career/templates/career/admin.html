@@ -83,10 +83,56 @@
             <button class="btn btn-outline-secondary btn-sm">Finish</button>
           </form>
           {% endif %}
+          <form method="post" action="{{ url_for('career.admin_delete_season', season_id=s.id) }}"
+                class="d-inline"
+                onsubmit="return confirm('Delete season \'{{ s.name }}\' and ALL its enrollments, upgrades and results? This cannot be undone.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn-outline-danger btn-sm">Delete</button>
+          </form>
         </td>
       </tr>
       {% else %}
       <tr><td colspan="6" class="text-secondary">No seasons yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h5 class="mt-4">Beta participants</h5>
+<p class="text-secondary small">During the beta only these Steam IDs can join and see the garage.</p>
+<div class="card bg-dark border-secondary mb-3">
+  <div class="card-body">
+    <form method="post" action="{{ url_for('career.admin_add_participant') }}" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="col-md-4"><label class="form-label small">SteamID64 (17 digits)</label>
+        <input name="steam_id" class="form-control bg-dark text-white border-secondary" required></div>
+      <div class="col-md-4"><label class="form-label small">Note (optional)</label>
+        <input name="note" class="form-control bg-dark text-white border-secondary"></div>
+      <div class="col-md-2"><button class="btn btn-warm-red w-100">Add</button></div>
+    </form>
+  </div>
+</div>
+<div class="table-responsive">
+  <table class="table table-dark table-sm align-middle">
+    <thead><tr><th>SteamID64</th><th>Driver</th><th>Note</th><th>Added</th><th></th></tr></thead>
+    <tbody>
+      {% for p in participants %}
+      <tr>
+        <td><code>{{ p.steam_id }}</code></td>
+        <td>{{ p.driver_name or '—' }}</td>
+        <td>{{ p.note or '' }}</td>
+        <td class="text-secondary small">{{ p.added_at.strftime('%Y-%m-%d') }}</td>
+        <td class="text-end">
+          <form method="post" action="{{ url_for('career.admin_remove_participant') }}" class="d-inline"
+                onsubmit="return confirm('Remove this participant from the beta?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="steam_id" value="{{ p.steam_id }}">
+            <button class="btn btn-outline-danger btn-sm">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-secondary">No participants yet — add Steam IDs above.</td></tr>
       {% endfor %}
     </tbody>
   </table>
