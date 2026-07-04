@@ -75,9 +75,9 @@
         {% for r in standings %}
         <tr>
           <td>{{ loop.index }}</td>
-          <td>{% if r.driver_flag %}<span class="fi fi-xx me-1"></span>{% endif %}
+          <td>{% if r.flag_code %}<span class="fi fi-{{ r.flag_code }} me-1"></span>{% endif %}
             {% if r.display_tag %}<span class="badge bg-secondary">{{ r.display_tag }}</span> {% endif %}
-            {{ r.driver_name }}</td>
+            <a href="{{ url_for('main.driver_profile', driver_id=r.steam_id) }}" class="text-white">{{ r.driver_name }}</a></td>
           <td class="text-end">{{ r.races }}</td>
           <td class="text-end">{{ r.wins }}</td>
           <td class="text-end">{{ r.poles }}</td>

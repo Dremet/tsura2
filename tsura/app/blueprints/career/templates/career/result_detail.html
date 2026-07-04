@@ -15,7 +15,7 @@
         <td class="fw-bold">{{ r.position }}</td>
         <td>{{ r.start_position or '—' }}{% if r.is_pole %} <span class="badge bg-warning text-dark">P</span>{% endif %}</td>
         <td>{% if r.display_tag %}<span class="badge bg-secondary">{{ r.display_tag }}</span> {% endif %}
-          {{ r.driver_name }}{% if r.is_fastest_lap %} <span class="badge bg-info text-dark">FL</span>{% endif %}</td>
+          <a href="{{ url_for('main.driver_profile', driver_id=r.steam_id) }}" class="text-white">{{ r.driver_name }}</a>{% if r.is_fastest_lap %} <span class="badge bg-info text-dark">FL</span>{% endif %}</td>
         <td class="text-end">{{ r.laps_completed }}</td>
         <td class="text-end fw-bold">{{ r.points_total if r.points_total is not none else '—' }}</td>
         <td class="text-end text-warning">{{ r.credits if r.credits is not none else '—' }}</td>

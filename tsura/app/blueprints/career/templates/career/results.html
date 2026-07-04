@@ -12,7 +12,7 @@
         <td>{{ s.utc_start_time.strftime('%Y-%m-%d %H:%M') }}</td>
         <td>{{ s.track_name }}</td>
         <td class="text-end">{{ s.participants }}</td>
-        <td>{{ s.winner or '—' }}</td>
+        <td>{% if s.winner %}<a href="{{ url_for('main.driver_profile', driver_id=s.winner_steam_id) }}" class="text-white">{{ s.winner }}</a>{% else %}—{% endif %}</td>
         <td class="text-end">
           <a href="{{ url_for('career.result_detail', session_id=s.session_id) }}"
              class="btn btn-outline-light btn-sm">View</a></td>

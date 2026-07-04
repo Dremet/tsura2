@@ -95,7 +95,9 @@ def home():
             cur.execute(
                 "SELECT * FROM mart.v_career_standings WHERE season_id = %s "
                 "ORDER BY points_total DESC, wins DESC LIMIT 10", (season["id"],))
-            standings = cur.fetchall()
+            from ..main.routes import _flag_code
+            standings = [dict(r, flag_code=_flag_code(r.get("driver_flag")))
+                         for r in cur.fetchall()]
             sid = g.get("current_steam_id")
             if sid:
                 cur.execute("SELECT 1 FROM career.enrollments "
@@ -166,7 +168,8 @@ def results():
         cur.execute("""
             SELECT r.session_id, r.utc_start_time, r.track_name, r.season_id,
                    MIN(r.participant_count) AS participants,
-                   MIN(r.driver_name) FILTER (WHERE r.position = 1) AS winner
+                   MIN(r.driver_name) FILTER (WHERE r.position = 1) AS winner,
+                   MIN(r.steam_id) FILTER (WHERE r.position = 1) AS winner_steam_id
               FROM mart.v_career_results r
           GROUP BY r.session_id, r.utc_start_time, r.track_name, r.season_id
           ORDER BY r.utc_start_time DESC LIMIT 100""")
