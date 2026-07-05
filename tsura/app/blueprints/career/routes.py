@@ -16,13 +16,10 @@ from flask import (abort, current_app, flash, g, redirect, render_template,
 from . import career_bp
 from ...extensions import db_pool, make_csrf_token
 
-AXES = [
-    # performance
-    "top_speed", "acceleration", "braking", "grip", "downforce",
-    # driveability (cheap, little pace, easier car)
-    "sliding_gradual_range", "spring_max_length",
-    "locking_start_time", "oversteering_braking",
-]
+AXES_PERFORMANCE = ["top_speed", "acceleration", "braking", "grip", "downforce"]
+AXES_DRIVEABILITY = ["sliding_gradual_range", "spring_max_length",
+                     "locking_start_time", "oversteering_braking"]
+AXES = AXES_PERFORMANCE + AXES_DRIVEABILITY
 AXIS_LABELS = {
     "top_speed": "Top Speed",
     "acceleration": "Acceleration",
@@ -33,6 +30,27 @@ AXIS_LABELS = {
     "spring_max_length": "Spring Max Length",
     "locking_start_time": "Locking Start Time",
     "oversteering_braking": "Oversteering Braking",
+}
+# What each parameter actually does in-game (game's own physics tooltips,
+# see tsu_vehicle_tools TOOLTIPS.md / tooltips.json).
+AXIS_DESCRIPTIONS = {
+    "top_speed": "Maximum speed in km/h on default tarmac.",
+    "acceleration": "How quickly the car accelerates towards its top speed.",
+    "braking": "Braking deceleration in m/s\u00b2 \u2014 lets you brake later and harder.",
+    "grip": "How quickly the car can turn without starting to slide "
+            "(turn rate = grip / speed).",
+    "downforce": "Downward force from speed: extra grip and braking at high "
+                 "speed, scaling with (speed / top speed)\u00b2.",
+    "sliding_gradual_range": "Sliding effects build up gradually over this "
+                             "range instead of hitting at full force \u2014 "
+                             "slides get easier to catch.",
+    "spring_max_length": "Longer suspension travel \u2014 the car stays more "
+                         "settled over bumps, curbs and jumps.",
+    "locking_start_time": "How long you can brake at full force before the "
+                          "wheels lock up and start smoking.",
+    "oversteering_braking": "Extra oversteer while braking \u2014 upgrades "
+                            "bring it towards zero for a calmer rear end on "
+                            "corner entry.",
 }
 
 
@@ -235,6 +253,7 @@ def garage():
             tier = tiers.get(axis, 0)
             items.append({
                 "axis": axis, "label": AXIS_LABELS[axis], "tier": tier,
+                "descr": AXIS_DESCRIPTIONS.get(axis, ""),
                 "max_tier": c["max_tier"], "cost": c["cost_per_tier"],
                 "base_value": c["base_value"], "step": c["step_per_tier"],
                 "current_value": c["base_value"] + tier * c["step_per_tier"],
@@ -242,8 +261,16 @@ def garage():
                 "can_buy": tier < c["max_tier"] and balance >= c["cost_per_tier"],
                 "maxed": tier >= c["max_tier"],
             })
+    sections = [
+        ("Performance", None,
+         [i for i in items if i["axis"] in AXES_PERFORMANCE]),
+        ("Driveability",
+         "Cheaper upgrades that don't gain much pace but make the car "
+         "easier to drive.",
+         [i for i in items if i["axis"] in AXES_DRIVEABILITY]),
+    ]
     return render_template("career/garage.html", season=season, enrolled=True,
-                           balance=balance, items=items)
+                           balance=balance, items=items, sections=sections)
 
 
 @career_bp.route("/join", methods=["POST"])

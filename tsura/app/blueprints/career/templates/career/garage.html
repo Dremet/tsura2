@@ -30,12 +30,16 @@
     <div class="ms-auto fs-5">Credits: <span class="text-warning fw-bold">{{ balance }}</span></div>
   </div>
 
+  {% for title, subtitle, group in sections %}
+  <h4 class="mt-3">{{ title }}</h4>
+  {% if subtitle %}<p class="text-secondary small mb-2">{{ subtitle }}</p>{% endif %}
   <div class="row g-3">
-    {% for it in items %}
+    {% for it in group %}
     <div class="col-md-6 col-xl-3">
       <div class="card bg-dark border-secondary h-100">
         <div class="card-body d-flex flex-column">
           <h5 class="card-title">{{ it.label }}</h5>
+          <p class="text-secondary small mb-2">{{ it.descr }}</p>
           <p class="mb-1">Tier <span class="badge bg-danger">{{ it.tier }}</span> / {{ it.max_tier }}</p>
           <p class="mb-1 text-secondary small">Now: {{ '%.2f'|format(it.current_value) }}
             {% if not it.maxed %}→ Next: {{ '%.2f'|format(it.next_value) }}{% endif %}</p>
@@ -61,6 +65,7 @@
     </div>
     {% endfor %}
   </div>
+  {% endfor %}
   <p class="text-secondary small mt-3">Upgrades apply from the next race night. Your tuned car is
     generated automatically and forced onto you in-game by Steam ID.</p>
 {% endif %}
