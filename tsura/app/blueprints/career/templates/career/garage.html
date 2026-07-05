@@ -28,6 +28,9 @@
     <div class="me-4">Season: <strong>{{ season.name }}</strong> · Base car:
       <strong>{{ season.base_vehicle_name }}</strong></div>
     <div class="ms-auto fs-5">Credits: <span class="text-warning fw-bold">{{ balance }}</span></div>
+    <a class="btn btn-outline-light btn-sm ms-3" href="{{ url_for('career.download_car') }}"
+       title="Test your current tuning offline — the same car is forced onto you on race night.">
+      Download my car (.veh)</a>
   </div>
 
   {% for title, subtitle, group in sections %}

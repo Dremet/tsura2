@@ -7,11 +7,15 @@ Race results + rewards are produced by the pipeline and read via mart views.
 from __future__ import annotations
 
 import hmac
+import io
+import os
+import sys
+import tempfile
 from functools import wraps
 
 import psycopg
 from flask import (abort, current_app, flash, g, redirect, render_template,
-                   request, url_for)
+                   request, send_file, url_for)
 
 from . import career_bp
 from ...extensions import db_pool, make_csrf_token
@@ -52,6 +56,17 @@ AXIS_DESCRIPTIONS = {
                             "bring it towards zero for a calmer rear end on "
                             "corner entry.",
 }
+
+# Server-side vehicle tools (deployed from tsura_server_scripts/career/);
+# used to build the downloadable .veh from the driver's current tuning.
+CAREER_TOOLS_DIR = "/home/career/career_tools"
+
+
+def _career_vehicles():
+    if CAREER_TOOLS_DIR not in sys.path:
+        sys.path.insert(0, CAREER_TOOLS_DIR)
+    import career_vehicles
+    return career_vehicles
 
 
 # ----------------------------------------------------------------- helpers
@@ -271,6 +286,41 @@ def garage():
     ]
     return render_template("career/garage.html", season=season, enrolled=True,
                            balance=balance, items=items, sections=sections)
+
+
+@career_bp.route("/garage/download")
+@_login_required
+def download_car():
+    """The logged-in driver's .veh, built live from their current tuning."""
+    sid = g.current_steam_id
+    with _cur() as cur:
+        season = _active_season(cur)
+        if not season:
+            abort(404)
+        cur.execute("SELECT driver_name, axis, final_value "
+                    "FROM mart.v_career_driver_cars "
+                    "WHERE season_id = %s AND steam_id = %s",
+                    (season["id"], sid))
+        rows = cur.fetchall()
+    if not rows:
+        abort(404)
+    veh_name = f"Career {rows[0]['driver_name']}"
+    tuned = {r["axis"]: float(r["final_value"]) for r in rows}
+    try:
+        cv = _career_vehicles()
+    except ImportError:
+        current_app.logger.exception("career vehicle tools unavailable")
+        abort(503)
+    with tempfile.TemporaryDirectory() as td:
+        out = os.path.join(td, "car.veh")
+        cv.build_driver_vehicle(season["base_vehicle_veh"], out,
+                                display_name=veh_name, steam_id64=int(sid),
+                                tuned=tuned)
+        with open(out, "rb") as f:
+            data = f.read()
+    return send_file(io.BytesIO(data), as_attachment=True,
+                     download_name=f"{veh_name}.veh",
+                     mimetype="application/octet-stream")
 
 
 @career_bp.route("/join", methods=["POST"])
