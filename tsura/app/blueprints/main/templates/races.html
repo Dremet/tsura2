@@ -2,7 +2,17 @@
 {% block title %}TSURA | Races{% endblock %}
 {% block content %}
 
-<h2 class="mb-4">Race Results</h2>
+<div class="d-flex flex-wrap align-items-center mb-4 gap-2">
+    <h2 class="mb-0 me-auto">Race Results</h2>
+    <div class="btn-group" role="group" aria-label="Server filter">
+        <a href="{{ url_for('main.races') }}"
+           class="btn btn-sm {{ 'btn-warm-red' if not server_filter else 'btn-outline-secondary' }}">All</a>
+        {% for key, label in server_labels.items() %}
+        <a href="{{ url_for('main.races', server=key) }}"
+           class="btn btn-sm {{ 'btn-warm-red' if server_filter == key else 'btn-outline-secondary' }}">{{ label }}</a>
+        {% endfor %}
+    </div>
+</div>
 <div class="table-responsive">
     <table class="table table-dark table-hover align-middle">
         <thead>
@@ -25,6 +35,8 @@
                     <span class="badge bg-danger">TripleHeat</span>
                     {% elif race.server == 'casual_heat' %}
                     <span class="badge bg-primary">Casual-Heat</span>
+                    {% elif race.server == 'career' %}
+                    <span class="badge bg-warning text-dark">Career</span>
                     {% else %}
                     <span class="badge bg-secondary">Event</span>
                     {% endif %}

@@ -104,6 +104,15 @@ API_URL = (
 _RACE_SERVERS = ("events", "tripleheat", "casual_heat")
 
 
+# Servers selectable on the /races page (key = DB server name).
+RACE_SERVERS = {
+    "events": "Event Server",
+    "tripleheat": "TripleHeat",
+    "casual_heat": "Casual-Heat",
+    "career": "Career",
+}
+
+
 def _last_day_summary(cur, server: str) -> list:
     """All races on the most recent race day for a given server, max 5."""
     cur.execute(
@@ -159,6 +168,7 @@ def index():
         summary_events = _last_day_summary(cur, "events")
         summary_heats  = _last_day_summary(cur, "tripleheat")
         summary_casual = _last_day_summary(cur, "casual_heat")
+        summary_career = _last_day_summary(cur, "career")
 
     # server list -----------------------------------------------------------
     servers: list[dict] = []
@@ -185,6 +195,7 @@ def index():
         summary_events=summary_events,
         summary_heats=summary_heats,
         summary_casual=summary_casual,
+        summary_career=summary_career,
     )
 
 
@@ -407,7 +418,15 @@ def elo_heats():
 # --------------------------------------------------------------------------- #
 @main_bp.route("/races")
 def races():
-    """Race results: full list (≥4 human participants), newest first."""
+    """Race results, newest first, optionally filtered by ?server=.
+
+    Events/heat servers only list races with ≥4 humans; the career
+    server has no minimum (small championship grids are the norm there).
+    """
+    server = request.args.get("server")
+    if server not in RACE_SERVERS:
+        server = None
+    servers = [server] if server else list(RACE_SERVERS)
     conn = db_pool.get_conn()
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
         cur.execute(
@@ -421,16 +440,18 @@ def races():
                 STRING_AGG(DISTINCT vehicle_name, ', ' ORDER BY vehicle_name) AS cars,
                 MIN(driver_name) FILTER (WHERE position = 1) AS winner
               FROM mart.v_race_results
-             WHERE server IN ('events', 'tripleheat', 'casual_heat')
+             WHERE server = ANY(%(servers)s)
           GROUP BY session_id, utc_start_time, server, track_name
-            HAVING MIN(human_participant_count) >= 4
+            HAVING MIN(human_participant_count) >= 4 OR server = 'career'
           ORDER BY utc_start_time DESC
              LIMIT 200;
-            """
+            """,
+            {"servers": servers},
         )
         race_list = cur.fetchall()
 
-    return render_template("races.html", races=race_list)
+    return render_template("races.html", races=race_list,
+                           server_filter=server, server_labels=RACE_SERVERS)
 
 
 # --------------------------------------------------------------------------- #
