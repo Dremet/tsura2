@@ -328,7 +328,7 @@ def download_car():
         with open(out, "rb") as f:
             data = f.read()
     return send_file(io.BytesIO(data), as_attachment=True,
-                     download_name=f"{veh_name}.veh",
+                     download_name=f"{veh_name.replace(' ', '_')}.veh",
                      mimetype="application/octet-stream")
 
 
