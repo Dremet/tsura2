@@ -16,12 +16,23 @@ from flask import (abort, current_app, flash, g, redirect, render_template,
 from . import career_bp
 from ...extensions import db_pool, make_csrf_token
 
-AXES = ["top_speed", "acceleration", "braking", "downforce"]
+AXES = [
+    # performance
+    "top_speed", "acceleration", "braking", "grip", "downforce",
+    # driveability (cheap, little pace, easier car)
+    "sliding_gradual_range", "spring_max_length",
+    "locking_start_time", "oversteering_braking",
+]
 AXIS_LABELS = {
     "top_speed": "Top Speed",
     "acceleration": "Acceleration",
     "braking": "Braking",
+    "grip": "Grip",
     "downforce": "Downforce",
+    "sliding_gradual_range": "Sliding Gradual Range",
+    "spring_max_length": "Spring Max Length",
+    "locking_start_time": "Locking Start Time",
+    "oversteering_braking": "Oversteering Braking",
 }
 
 
