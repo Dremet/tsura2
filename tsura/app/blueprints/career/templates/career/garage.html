@@ -31,6 +31,14 @@
     <a class="btn btn-outline-light btn-sm ms-3" href="{{ url_for('career.download_car') }}"
        title="Test your current tuning offline — the same car is forced onto you on race night.">
       Download my car (.veh)</a>
+    {% if undo_info %}
+    <form method="post" action="{{ url_for('career.undo') }}" class="ms-2 mb-0">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="btn btn-outline-warning btn-sm"
+              title="Only your most recent upgrade can be undone.">
+        Undo last upgrade ({{ undo_info.label }}, +{{ undo_info.cost }} cr)</button>
+    </form>
+    {% endif %}
   </div>
 
   {% for title, subtitle, group in sections %}

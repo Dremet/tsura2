@@ -260,6 +260,14 @@ def garage():
         cur.execute("SELECT axis, tier FROM career.driver_upgrades "
                     "WHERE season_id = %s AND steam_id = %s", (season["id"], sid))
         tiers = {r["axis"]: r["tier"] for r in cur.fetchall()}
+        cur.execute("SELECT axis, tier_after FROM career.last_purchase "
+                    "WHERE season_id = %s AND steam_id = %s AND NOT undone",
+                    (season["id"], sid))
+        lp = cur.fetchone()
+        undo_info = None
+        if lp and tiers.get(lp["axis"], 0) == lp["tier_after"] and lp["axis"] in cfg:
+            undo_info = {"label": AXIS_LABELS.get(lp["axis"], lp["axis"]),
+                         "cost": cfg[lp["axis"]]["cost_per_tier"]}
         items = []
         for axis in AXES:
             c = cfg.get(axis)
@@ -285,7 +293,8 @@ def garage():
          [i for i in items if i["axis"] in AXES_DRIVEABILITY]),
     ]
     return render_template("career/garage.html", season=season, enrolled=True,
-                           balance=balance, items=items, sections=sections)
+                           balance=balance, items=items, sections=sections,
+                           undo_info=undo_info)
 
 
 @career_bp.route("/garage/download")
@@ -392,7 +401,72 @@ def buy():
                 "ON CONFLICT (season_id, steam_id, axis) "
                 "DO UPDATE SET tier = career.driver_upgrades.tier + 1, updated_at = now()",
                 (season["id"], sid, axis))
+            cur.execute(
+                "INSERT INTO career.last_purchase "
+                "(season_id, steam_id, axis, tier_after, bought_at, undone) "
+                "VALUES (%s, %s, %s, %s, now(), false) "
+                "ON CONFLICT (season_id, steam_id) "
+                "DO UPDATE SET axis = EXCLUDED.axis, "
+                "tier_after = EXCLUDED.tier_after, bought_at = now(), "
+                "undone = false",
+                (season["id"], sid, axis, tier + 1))
             flash(f"{AXIS_LABELS[axis]} upgraded!", "success")
+    conn.commit()
+    return redirect(url_for("career.garage"))
+
+
+@career_bp.route("/garage/undo", methods=["POST"])
+@_login_required
+def undo():
+    """Revert the driver's most recent purchase (one step only, no chaining)."""
+    if not _csrf_ok():
+        abort(403)
+    sid = g.current_steam_id
+    conn = db_pool.get_conn()
+    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        season = _active_season(cur)
+        if not season:
+            flash("No active season.", "warning")
+            return redirect(url_for("career.garage"))
+        cur.execute("SELECT * FROM career.last_purchase "
+                    "WHERE season_id = %s AND steam_id = %s AND NOT undone "
+                    "FOR UPDATE", (season["id"], sid))
+        lp = cur.fetchone()
+        if not lp:
+            conn.commit()
+            flash("Nothing to undo \u2014 only your most recent upgrade "
+                  "can be undone.", "warning")
+            return redirect(url_for("career.garage"))
+        cur.execute("SELECT tier FROM career.driver_upgrades "
+                    "WHERE season_id = %s AND steam_id = %s AND axis = %s "
+                    "FOR UPDATE", (season["id"], sid, lp["axis"]))
+        row = cur.fetchone()
+        if not row or row["tier"] != lp["tier_after"]:
+            # stale (e.g. purchases were reset by an admin) -> invalidate
+            cur.execute("UPDATE career.last_purchase SET undone = true "
+                        "WHERE season_id = %s AND steam_id = %s",
+                        (season["id"], sid))
+            flash("Nothing to undo.", "warning")
+        else:
+            if lp["tier_after"] <= 1:
+                cur.execute("DELETE FROM career.driver_upgrades "
+                            "WHERE season_id = %s AND steam_id = %s "
+                            "AND axis = %s", (season["id"], sid, lp["axis"]))
+            else:
+                cur.execute("UPDATE career.driver_upgrades "
+                            "SET tier = tier - 1, updated_at = now() "
+                            "WHERE season_id = %s AND steam_id = %s "
+                            "AND axis = %s", (season["id"], sid, lp["axis"]))
+            cur.execute("UPDATE career.last_purchase SET undone = true "
+                        "WHERE season_id = %s AND steam_id = %s",
+                        (season["id"], sid))
+            cur.execute("SELECT cost_per_tier FROM career.upgrade_axes "
+                        "WHERE season_id = %s AND axis = %s",
+                        (season["id"], lp["axis"]))
+            c = cur.fetchone()
+            refund = c["cost_per_tier"] if c else 0
+            flash(f"{AXIS_LABELS.get(lp['axis'], lp['axis'])} upgrade undone "
+                  f"\u2014 {refund} cr refunded.", "success")
     conn.commit()
     return redirect(url_for("career.garage"))
 
