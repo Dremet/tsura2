@@ -527,7 +527,15 @@ def admin():
                 "FROM mart.v_career_driver_cars "
                 "WHERE season_id = %s ORDER BY driver_name", (pen_season["id"],))
             pen_drivers = cur.fetchall()
+        cur.execute(
+            "SELECT r.id, r.steam_id, r.status, r.requested_at, r.processed_at, "
+            "  r.note, (SELECT dc.driver_name FROM mart.v_career_driver_cars dc "
+            "    WHERE dc.season_id=r.season_id AND dc.steam_id=r.steam_id LIMIT 1) "
+            "    AS driver_name "
+            "FROM career.car_build_requests r ORDER BY r.requested_at DESC LIMIT 10")
+        build_requests = cur.fetchall()
     return render_template("career/admin.html", seasons=seasons, axes=AXES,
+                           build_requests=build_requests,
                            axis_labels=AXIS_LABELS, participants=participants,
                            penalties=penalties, pen_drivers=pen_drivers,
                            pen_season=pen_season)
@@ -570,6 +578,29 @@ def admin_remove_penalty(penalty_id):
         cur.execute("DELETE FROM career.penalties WHERE id = %s", (penalty_id,))
     conn.commit()
     flash("Penalty removed.", "success")
+    return redirect(url_for("career.admin"))
+
+
+@career_bp.route("/admin/build-car", methods=["POST"])
+@_admin_required
+def admin_build_car():
+    if not _csrf_ok():
+        abort(403)
+    f = request.form
+    try:
+        season_id = int(f["season_id"])
+        sid = int(f["steam_id"])
+    except (KeyError, ValueError):
+        flash("Invalid build request.", "danger")
+        return redirect(url_for("career.admin"))
+    conn = db_pool.get_conn()
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO career.car_build_requests (season_id, steam_id, requested_by) "
+            "VALUES (%s, %s, %s)", (season_id, sid, g.current_steam_id))
+    conn.commit()
+    flash("Car build queued — it will be generated and forced in-game "
+          "within ~1 minute.", "success")
     return redirect(url_for("career.admin"))
 
 

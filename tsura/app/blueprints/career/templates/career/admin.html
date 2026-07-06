@@ -138,6 +138,37 @@
   </table>
 </div>
 
+<h5 class="mt-4">Rebuild &amp; assign a car</h5>
+<p class="text-secondary small">For a driver who upgraded late: rebuild their tuned car from the
+  current setup and force it in-game (within ~1 min — live if a session is running, otherwise the
+  car is used from the next event).</p>
+{% if pen_season %}
+<div class="card bg-dark border-secondary mb-3"><div class="card-body">
+  <form method="post" action="{{ url_for('career.admin_build_car') }}" class="row g-2 align-items-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="season_id" value="{{ pen_season.id }}">
+    <div class="col-md-5"><label class="form-label small">Driver ({{ pen_season.name }})</label>
+      <select name="steam_id" class="form-select bg-dark text-white border-secondary" required>
+        <option value="" disabled selected>Choose driver…</option>
+        {% for d in pen_drivers %}<option value="{{ d.steam_id }}">{{ d.name }}</option>{% endfor %}
+      </select></div>
+    <div class="col-md-3"><button class="btn btn-warm-red w-100">Build &amp; assign</button></div>
+  </form>
+</div></div>
+{% else %}<div class="alert alert-secondary">No active season.</div>{% endif %}
+{% if build_requests %}
+<div class="table-responsive"><table class="table table-dark table-sm align-middle">
+  <thead><tr><th>When</th><th>Driver</th><th>Status</th><th>Note</th></tr></thead>
+  <tbody>
+  {% for r in build_requests %}
+    <tr><td class="text-secondary small">{{ r.requested_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ r.driver_name or r.steam_id }}</td>
+      <td>{% if r.status=='done' %}<span class="badge bg-success">done</span>{% elif r.status=='error' %}<span class="badge bg-danger">error</span>{% else %}<span class="badge bg-secondary">pending</span>{% endif %}</td>
+      <td class="text-secondary small">{{ r.note or '' }}</td></tr>
+  {% endfor %}
+  </tbody></table></div>
+{% endif %}
+
 <h5 class="mt-4">Penalty points</h5>
 <p class="text-secondary small">Deducted from a driver’s championship total on
   the <strong>standings only</strong> — per-race results and credits are untouched.</p>
