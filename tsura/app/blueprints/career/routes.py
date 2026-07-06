@@ -37,16 +37,24 @@ AXIS_LABELS = {
 }
 # What each parameter actually does in-game (game's own physics tooltips,
 # see tsu_vehicle_tools TOOLTIPS.md / tooltips.json).
-def _tier_grade(tier, max_tier):
-    """Coarse A(best) to F(worst) grade + colour from a tier / its max."""
-    if not max_tier or tier <= 0:
+def _field_grade(tier, max_tier, field_max_tier):
+    """Competitive grade for one axis, relative to the field.
+
+    F = stock (no investment); S (purple) = maxed out; A = field-leading
+    (no other car has a higher value, and not maxed); B..E = ranked by how
+    the tier compares to the strongest car on this axis.
+    """
+    if tier <= 0:
         return ("F", "#6e7681")
-    r = tier / max_tier
-    if r <= 0.2:  return ("E", "#d0553f")
-    if r <= 0.4:  return ("D", "#e0863a")
-    if r <= 0.6:  return ("C", "#d9a406")
-    if r <= 0.8:  return ("B", "#57ab5a")
-    return ("A", "#2ea043")
+    if max_tier and tier >= max_tier:
+        return ("S", "#a371f7")           # maxed out
+    if tier >= field_max_tier:
+        return ("A", "#2ea043")           # nobody higher (non-maxed leader)
+    r = tier / field_max_tier if field_max_tier else 0
+    if r > 0.75: return ("B", "#57ab5a")
+    if r > 0.50: return ("C", "#d9a406")
+    if r > 0.25: return ("D", "#e0863a")
+    return ("E", "#d0553f")
 
 
 AXIS_DESCRIPTIONS = {
@@ -213,14 +221,19 @@ def upgrades():
                 "SELECT steam_id, driver_name, axis, tier, final_value "
                 "FROM mart.v_career_upgrades WHERE season_id = %s "
                 "ORDER BY driver_name", (season["id"],))
+            urows = cur.fetchall()
+            field_max = {}   # axis -> highest tier anyone runs (field strength)
+            for r in urows:
+                field_max[r["axis"]] = max(field_max.get(r["axis"], 0), r["tier"])
             per_driver = {}
-            for r in cur.fetchall():
+            for r in urows:
                 d = per_driver.setdefault(
                     r["steam_id"],
                     {"driver_name": r["driver_name"], "steam_id": r["steam_id"],
                      "axes": {}, "spent": 0})
                 _cfg = axes_cfg.get(r["axis"]) or {}
-                gr, col = _tier_grade(r["tier"], _cfg.get("max_tier"))
+                gr, col = _field_grade(r["tier"], _cfg.get("max_tier"),
+                                       field_max.get(r["axis"], 0))
                 r["grade"], r["gcolor"] = gr, col
                 d["axes"][r["axis"]] = r
                 d["spent"] = d.get("spent", 0) + r["tier"] * (_cfg.get("cost_per_tier") or 0)
