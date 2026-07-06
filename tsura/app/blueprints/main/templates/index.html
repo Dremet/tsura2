@@ -16,10 +16,10 @@
 {% macro server_summary(title, badge_class, badge_label, sessions, server_key) %}
 {% if sessions %}
 <div class="card mb-3">
-    <div class="card-header d-flex align-items-center gap-2">
-        <span class="badge {{ badge_class }}">{{ badge_label }}</span>
-        <small class="text-muted ms-1">last race day: {{ sessions[0].utc_start_time.strftime('%d.%m.%Y') }}</small>
-        <a href="{{ url_for('main.races', server=server_key) }}" class="ms-auto btn btn-outline-secondary btn-sm">More</a>
+    <div class="card-header {{ badge_class }} d-flex align-items-center gap-2">
+        <strong>{{ badge_label }}</strong>
+        <small class="ms-1" style="opacity:.85">last race day: {{ sessions[0].utc_start_time.strftime('%d.%m.%Y') }}</small>
+        <a href="{{ url_for('main.races', server=server_key) }}" class="ms-auto btn btn-light btn-sm">More</a>
     </div>
     <div class="card-body p-0">
         <table class="table table-dark table-hover align-middle mb-0" style="table-layout:fixed">
