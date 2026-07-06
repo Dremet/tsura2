@@ -4,7 +4,7 @@
 
 <div class="d-flex flex-wrap align-items-center mb-4 gap-2">
     <h2 class="mb-0 me-auto">Race Results</h2>
-    <div class="btn-group" role="group" aria-label="Server filter">
+    <div class="d-flex flex-wrap gap-2" role="group" aria-label="Server filter">
         <a href="{{ url_for('main.races') }}"
            class="btn btn-sm {{ 'btn-warm-red' if not server_filter else 'btn-outline-secondary' }}">All</a>
         {% for key, label in server_labels.items() %}
@@ -23,7 +23,7 @@
                 <th>Drivers</th>
                 <th>Cars</th>
                 <th>Winner</th>
-                <th>Details</th>
+                <th data-nosort>Details</th>
             </tr>
         </thead>
         <tbody>

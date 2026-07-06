@@ -111,7 +111,7 @@
           th.style.userSelect = "none";
           const caret = document.createElement("span");
           caret.className = "text-secondary small ms-1";
-          caret.textContent = "\u2195";
+          th.title = "Click to sort";
           th.appendChild(caret);
           th.addEventListener("click", () => {
             const cur = th.dataset.sort || "none";
@@ -119,11 +119,10 @@
             ths.forEach((o) => {
               o.dataset.sort = "";
               const c = o.querySelector("span:last-child");
-              if (c && !o.hasAttribute("data-nosort") && o.textContent.trim())
-                c.textContent = "\u2195";
+              if (c) c.textContent = "";
             });
             th.dataset.sort = next;
-            caret.textContent = next === "asc" ? "\u25b2" : next === "desc" ? "\u25bc" : "\u2195";
+            caret.textContent = next === "asc" ? "\u25b2" : next === "desc" ? "\u25bc" : "";
             const rows = dataRows();
             if (next === "none") {
               rows.sort((a, b) => (a.dataset.i - b.dataset.i));
@@ -137,6 +136,25 @@
           });
         });
       });
+    });
+    </script>
+    <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const els = document.querySelectorAll(".js-deadline");
+      if (!els.length) return;
+      const berlinNow = () => new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Berlin"}));
+      const tick = () => {
+        const now = berlinNow(), t = new Date(now);
+        t.setDate(now.getDate() + ((1 - now.getDay() + 7) % 7));
+        t.setHours(20, 55, 0, 0);
+        if (t <= now) t.setDate(t.getDate() + 7);
+        const ms = t - now;
+        const d = Math.floor(ms/86400000), h = Math.floor(ms/3600000)%24,
+              m = Math.floor(ms/60000)%60, s = Math.floor(ms/1000)%60;
+        const txt = (d ? d + "d " : "") + h + "h " + m + "m " + s + "s";
+        els.forEach(e => e.textContent = txt);
+      };
+      tick(); setInterval(tick, 1000);
     });
     </script>
 </body>

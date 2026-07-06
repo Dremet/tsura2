@@ -139,8 +139,8 @@
 </div>
 
 <h5 class="mt-4">Penalty points</h5>
-<p class="text-secondary small">Deducted from a driver\u2019s championship total on
-  the <strong>standings only</strong> \u2014 per-race results and credits are untouched.</p>
+<p class="text-secondary small">Deducted from a driver’s championship total on
+  the <strong>standings only</strong> — per-race results and credits are untouched.</p>
 {% if pen_season %}
 <div class="card bg-dark border-secondary mb-3">
   <div class="card-body">
@@ -149,7 +149,7 @@
       <input type="hidden" name="season_id" value="{{ pen_season.id }}">
       <div class="col-md-4"><label class="form-label small">Driver ({{ pen_season.name }})</label>
         <select name="steam_id" class="form-select bg-dark text-white border-secondary" required>
-          <option value="" disabled selected>Choose driver\u2026</option>
+          <option value="" disabled selected>Choose driver…</option>
           {% for d in pen_drivers %}<option value="{{ d.steam_id }}">{{ d.name }}</option>{% endfor %}
         </select></div>
       <div class="col-md-2"><label class="form-label small">Points</label>

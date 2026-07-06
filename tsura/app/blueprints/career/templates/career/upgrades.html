@@ -18,7 +18,7 @@
 {% if not season %}
   <div class="alert alert-secondary">No seasons yet.</div>
 {% else %}
-<p class="text-secondary">Current upgrade tier (T) per driver and axis; the small number is the resulting tuned parameter value.</p>
+<p class="text-secondary">Investment grade per driver and axis — <span class="badge" style="background-color:#2ea043">A</span> best … <span class="badge" style="background-color:#6e7681">F</span> stock. Exact values are hidden.</p>
 <div class="table-responsive">
   <table class="table table-dark table-hover align-middle">
     <thead><tr><th>Driver</th>
@@ -33,10 +33,9 @@
           {% set cell = d.axes.get(a) %}
           <td class="text-end">
             {% if cell %}
-              <span class="badge bg-danger">T{{ cell.tier }}</span>
-              <span class="text-secondary small">{{ '%.2f'|format(cell.final_value) }}</span>
+              <span class="badge" style="background-color: {{ cell.gcolor }}">{{ cell.grade }}</span>
             {% else %}
-              <span class="badge bg-secondary">T0</span>
+              <span class="badge" style="background-color:#6e7681">F</span>
             {% endif %}
           </td>
         {% endfor %}

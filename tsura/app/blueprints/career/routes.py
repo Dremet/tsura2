@@ -37,6 +37,18 @@ AXIS_LABELS = {
 }
 # What each parameter actually does in-game (game's own physics tooltips,
 # see tsu_vehicle_tools TOOLTIPS.md / tooltips.json).
+def _tier_grade(tier, max_tier):
+    """Coarse A(best) to F(worst) grade + colour from a tier / its max."""
+    if not max_tier or tier <= 0:
+        return ("F", "#6e7681")
+    r = tier / max_tier
+    if r <= 0.2:  return ("E", "#d0553f")
+    if r <= 0.4:  return ("D", "#e0863a")
+    if r <= 0.6:  return ("C", "#d9a406")
+    if r <= 0.8:  return ("B", "#57ab5a")
+    return ("A", "#2ea043")
+
+
 AXIS_DESCRIPTIONS = {
     "top_speed": "Maximum speed in km/h on default tarmac.",
     "acceleration": "How quickly the car accelerates towards its top speed.",
@@ -167,13 +179,21 @@ def standings():
         sel = request.args.get("season", type=int)
         season = next((s for s in seasons if s["id"] == sel), None) \
             or _active_season(cur) or (seasons[0] if seasons else None)
-        rows = []
+        rows, penalties = [], []
         if season:
             cur.execute(
                 "SELECT * FROM mart.v_career_standings WHERE season_id = %s "
                 "ORDER BY points_total DESC, wins DESC", (season["id"],))
             rows = cur.fetchall()
-    return render_template("career/standings.html", seasons=seasons,
+            cur.execute(
+                "SELECT p.steam_id, p.points, p.reason, p.created_at, "
+                "  (SELECT dc.driver_name FROM mart.v_career_driver_cars dc "
+                "    WHERE dc.season_id = p.season_id AND dc.steam_id = p.steam_id "
+                "    LIMIT 1) AS driver_name "
+                "FROM career.penalties p WHERE p.season_id = %s "
+                "ORDER BY p.created_at DESC", (season["id"],))
+            penalties = cur.fetchall()
+    return render_template("career/standings.html", seasons=seasons, penalties=penalties,
                            season=season, rows=rows)
 
 
@@ -199,6 +219,9 @@ def upgrades():
                     r["steam_id"],
                     {"driver_name": r["driver_name"], "steam_id": r["steam_id"],
                      "axes": {}})
+                _mt = (axes_cfg.get(r["axis"]) or {}).get("max_tier")
+                gr, col = _tier_grade(r["tier"], _mt)
+                r["grade"], r["gcolor"] = gr, col
                 d["axes"][r["axis"]] = r
             table = list(per_driver.values())
     return render_template("career/upgrades.html", seasons=seasons, season=season,
