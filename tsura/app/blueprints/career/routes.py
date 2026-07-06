@@ -11,6 +11,7 @@ import io
 import os
 import sys
 import tempfile
+from datetime import date
 from functools import wraps
 
 import psycopg
@@ -155,6 +156,7 @@ def home():
     with _cur() as cur:
         season = _active_season(cur)
         standings, balance, enrolled = [], None, False
+        challenge, day_objs = None, []
         if season:
             cur.execute(
                 "SELECT * FROM mart.v_career_standings WHERE season_id = %s "
@@ -174,8 +176,29 @@ def home():
                                 (season["id"], sid))
                     row = cur.fetchone()
                     balance = row["balance"] if row else None
+
+            # race-day challenges (needs pipeline migration 014; hide until then)
+            cur.execute("SELECT to_regclass('mart.v_career_objectives') "
+                        "IS NOT NULL AS ok")
+            if cur.fetchone()["ok"]:
+                cur.execute(
+                    "SELECT * FROM mart.v_career_objectives "
+                    "WHERE season_id = %s AND race_date = ("
+                    "  SELECT MAX(race_date) FROM career.objectives "
+                    "  WHERE season_id = %s) "
+                    "ORDER BY driver_name", (season["id"], season["id"]))
+                day_objs = cur.fetchall()
+                today = date.today()
+                for o in day_objs:
+                    o["status"] = ("achieved" if o["achieved"]
+                                   else "open" if o["race_date"] >= today
+                                   else "missed")
+                if sid:
+                    challenge = next((o for o in day_objs
+                                      if str(o["steam_id"]) == str(sid)), None)
     return render_template("career/home.html", season=season, standings=standings,
                            balance=balance, enrolled=enrolled,
+                           challenge=challenge, day_objs=day_objs,
                            is_admin=_is_admin(g.get("current_steam_id")),
                            is_participant=_is_participant(g.get("current_steam_id")))
 
