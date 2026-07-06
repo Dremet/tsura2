@@ -25,6 +25,7 @@
       {% for a in axes %}<th class="text-end">{{ axis_labels[a] }}</th>{% endfor %}
     </tr></thead>
     <tbody>
+      {% set GRANK = {'S':6,'A':5,'B':4,'C':3,'D':2,'E':1,'F':0} %}
       {% for d in table %}
       <tr>
         <td><a href="{{ url_for('main.driver_profile', driver_id=d.steam_id) }}"
@@ -32,7 +33,7 @@
         <td class="text-end fw-bold text-warning">{{ d.spent }}</td>
         {% for a in axes %}
           {% set cell = d.axes.get(a) %}
-          <td class="text-end">
+          <td class="text-end" data-sort="{{ GRANK[cell.grade] if cell else 0 }}">
             {% if cell %}
               <span class="badge" style="background-color: {{ cell.gcolor }}">{{ cell.grade }}</span>
             {% else %}
