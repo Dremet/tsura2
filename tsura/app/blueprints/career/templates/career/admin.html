@@ -169,6 +169,27 @@
   </tbody></table></div>
 {% endif %}
 
+<h5 class="mt-4">Reset driver upgrades</h5>
+<p class="text-secondary small">Removes <strong>all</strong> purchased upgrades of a driver for the
+  active season and refunds the full amount — they can re-assign their credits from scratch.
+  The in-game car keeps its old build until the next session prep (or a manual
+  “Build &amp; assign”).</p>
+{% if pen_season %}
+<div class="card bg-dark border-secondary mb-3"><div class="card-body">
+  <form method="post" action="{{ url_for('career.admin_reset_upgrades') }}" class="row g-2 align-items-end"
+        onsubmit="return confirm('Reset ALL upgrades of this driver and refund their credits?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="season_id" value="{{ pen_season.id }}">
+    <div class="col-md-5"><label class="form-label small">Driver ({{ pen_season.name }})</label>
+      <select name="steam_id" class="form-select bg-dark text-white border-secondary" required>
+        <option value="" disabled selected>Choose driver…</option>
+        {% for d in pen_drivers %}<option value="{{ d.steam_id }}">{{ d.name }}</option>{% endfor %}
+      </select></div>
+    <div class="col-md-3"><button class="btn btn-outline-danger w-100">Reset upgrades</button></div>
+  </form>
+</div></div>
+{% else %}<div class="alert alert-secondary">No active season.</div>{% endif %}
+
 <h5 class="mt-4">Penalty points</h5>
 <p class="text-secondary small">Deducted from a driver’s championship total on
   the <strong>standings only</strong> — per-race results and credits are untouched.</p>

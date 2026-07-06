@@ -629,6 +629,49 @@ def admin_build_car():
     return redirect(url_for("career.admin"))
 
 
+@career_bp.route("/admin/upgrades/reset", methods=["POST"])
+@_admin_required
+def admin_reset_upgrades():
+    """Wipe a driver's purchased upgrades for one season.
+
+    Refund is implicit: the credit balance derives 'spent' from the current
+    tiers, so deleting them returns the full amount. last_purchase is
+    invalidated so the garage undo button cannot act on stale state.
+    """
+    if not _csrf_ok():
+        abort(403)
+    f = request.form
+    try:
+        season_id = int(f["season_id"])
+        sid = int(f["steam_id"])
+    except (KeyError, ValueError):
+        flash("Invalid reset request.", "danger")
+        return redirect(url_for("career.admin"))
+    conn = db_pool.get_conn()
+    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        cur.execute(
+            "SELECT COALESCE(SUM(du.tier * ax.cost_per_tier), 0) AS refund, "
+            "       COALESCE(SUM(du.tier), 0) AS tiers "
+            "FROM career.driver_upgrades du "
+            "JOIN career.upgrade_axes ax "
+            "  ON ax.season_id = du.season_id AND ax.axis = du.axis "
+            "WHERE du.season_id = %s AND du.steam_id = %s", (season_id, sid))
+        agg = cur.fetchone()
+        cur.execute("DELETE FROM career.driver_upgrades "
+                    "WHERE season_id = %s AND steam_id = %s", (season_id, sid))
+        cur.execute("UPDATE career.last_purchase SET undone = true "
+                    "WHERE season_id = %s AND steam_id = %s", (season_id, sid))
+    conn.commit()
+    if agg["tiers"]:
+        flash(f"Upgrades reset \u2014 {agg['tiers']} tiers removed, "
+              f"{agg['refund']} cr are back on the driver's balance. "
+              "The in-game car keeps the old build until the next session "
+              "prep (or a manual 'Build & assign').", "success")
+    else:
+        flash("Driver had no upgrades to reset.", "warning")
+    return redirect(url_for("career.admin"))
+
+
 @career_bp.route("/admin/season", methods=["POST"])
 @_admin_required
 def admin_create_season():
