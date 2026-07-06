@@ -17,13 +17,13 @@
           <input name="base_vehicle_veh" class="form-control bg-dark text-white border-secondary"
                  placeholder="/home/career/career_base/season1.veh" required></div>
         <div class="col-md-4"><label class="form-label small">Start credits</label>
-          <input type="number" name="start_credits" value="1000"
+          <input type="number" name="start_credits" value="{{ sdef.start_credits if sdef else 1000 }}"
                  class="form-control bg-dark text-white border-secondary"></div>
         <div class="col-md-4"><label class="form-label small">Credits P1</label>
-          <input type="number" name="credit_first" value="100"
+          <input type="number" name="credit_first" value="{{ sdef.credit_first if sdef else 100 }}"
                  class="form-control bg-dark text-white border-secondary"></div>
         <div class="col-md-4"><label class="form-label small">Credits last (≥ P1)</label>
-          <input type="number" name="credit_last" value="300"
+          <input type="number" name="credit_last" value="{{ sdef.credit_last if sdef else 300 }}"
                  class="form-control bg-dark text-white border-secondary"></div>
       </div>
 
@@ -35,13 +35,13 @@
             {% for a in axes %}
             <tr>
               <td>{{ axis_labels[a] }}</td>
-              <td><input name="{{ a }}_base" type="number" step="any" value="0"
+              <td><input name="{{ a }}_base" type="number" step="any" value="{{ sdef.axes[a].base_value if (sdef and a in sdef.axes) else 0 }}"
                      class="form-control form-control-sm bg-dark text-white border-secondary"></td>
-              <td><input name="{{ a }}_step" type="number" step="any" value="0"
+              <td><input name="{{ a }}_step" type="number" step="any" value="{{ sdef.axes[a].step_per_tier if (sdef and a in sdef.axes) else 0 }}"
                      class="form-control form-control-sm bg-dark text-white border-secondary"></td>
-              <td><input name="{{ a }}_max" type="number" value="5"
+              <td><input name="{{ a }}_max" type="number" value="{{ sdef.axes[a].max_tier if (sdef and a in sdef.axes) else 5 }}"
                      class="form-control form-control-sm bg-dark text-white border-secondary"></td>
-              <td><input name="{{ a }}_cost" type="number" value="100"
+              <td><input name="{{ a }}_cost" type="number" value="{{ sdef.axes[a].cost_per_tier if (sdef and a in sdef.axes) else 100 }}"
                      class="form-control form-control-sm bg-dark text-white border-secondary"></td>
             </tr>
             {% endfor %}

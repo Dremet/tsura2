@@ -218,12 +218,14 @@ def upgrades():
                 d = per_driver.setdefault(
                     r["steam_id"],
                     {"driver_name": r["driver_name"], "steam_id": r["steam_id"],
-                     "axes": {}})
-                _mt = (axes_cfg.get(r["axis"]) or {}).get("max_tier")
-                gr, col = _tier_grade(r["tier"], _mt)
+                     "axes": {}, "spent": 0})
+                _cfg = axes_cfg.get(r["axis"]) or {}
+                gr, col = _tier_grade(r["tier"], _cfg.get("max_tier"))
                 r["grade"], r["gcolor"] = gr, col
                 d["axes"][r["axis"]] = r
-            table = list(per_driver.values())
+                d["spent"] = d.get("spent", 0) + r["tier"] * (_cfg.get("cost_per_tier") or 0)
+            table = sorted(per_driver.values(),
+                           key=lambda d: d.get("spent", 0), reverse=True)
     return render_template("career/upgrades.html", seasons=seasons, season=season,
                            table=table, axes=AXES, axis_labels=AXIS_LABELS,
                            axes_cfg=axes_cfg)
@@ -527,6 +529,16 @@ def admin():
                 "FROM mart.v_career_driver_cars "
                 "WHERE season_id = %s ORDER BY driver_name", (pen_season["id"],))
             pen_drivers = cur.fetchall()
+        sdef = None
+        if pen_season:
+            cur.execute("SELECT start_credits, credit_first, credit_last "
+                        "FROM career.seasons WHERE id = %s", (pen_season["id"],))
+            _sc = cur.fetchone()
+            cur.execute("SELECT axis, base_value, step_per_tier, max_tier, cost_per_tier "
+                        "FROM career.upgrade_axes WHERE season_id = %s", (pen_season["id"],))
+            sdef = {"start_credits": _sc["start_credits"],
+                    "credit_first": _sc["credit_first"], "credit_last": _sc["credit_last"],
+                    "axes": {r["axis"]: r for r in cur.fetchall()}}
         cur.execute(
             "SELECT r.id, r.steam_id, r.status, r.requested_at, r.processed_at, "
             "  r.note, (SELECT dc.driver_name FROM mart.v_career_driver_cars dc "
@@ -535,7 +547,7 @@ def admin():
             "FROM career.car_build_requests r ORDER BY r.requested_at DESC LIMIT 10")
         build_requests = cur.fetchall()
     return render_template("career/admin.html", seasons=seasons, axes=AXES,
-                           build_requests=build_requests,
+                           build_requests=build_requests, sdef=sdef,
                            axis_labels=AXIS_LABELS, participants=participants,
                            penalties=penalties, pen_drivers=pen_drivers,
                            pen_season=pen_season)
