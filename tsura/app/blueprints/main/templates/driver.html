@@ -232,7 +232,7 @@
     <div class="col-md-4">
         <div class="card h-100">
             <div class="card-body">
-                <h5 class="card-title">TripleHeat ELO</h5>
+                <h5 class="card-title">Triple Heat ELO</h5>
                 <p class="display-6 fw-bold text-danger mb-1">{{ "%.1f"|format(profile.heat_elo) }}</p>
                 <p class="text-muted mb-1">{{ profile.heat_total_races }} races
                     {% if profile.heat_wins %}· {{ profile.heat_wins }} wins{% endif %}
@@ -308,9 +308,9 @@
                     <td class="text-muted small">{{ r.date }}</td>
                     <td>
                         {% if r.server == 'tripleheat' %}
-                        <span class="badge bg-danger">TripleHeat</span>
+                        <span class="badge bg-danger">Triple Heat</span>
                         {% elif r.server == 'casual_heat' %}
-                        <span class="badge bg-primary">Casual-Heat</span>
+                        <span class="badge bg-primary">Casual Heat</span>
                         {% else %}
                         <span class="badge bg-secondary">Event</span>
                         {% endif %}

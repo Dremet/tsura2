@@ -32,9 +32,9 @@
                 <td class="text-muted small">{{ race.utc_start_time.strftime('%d.%m.%y %H:%M') }}</td>
                 <td>
                     {% if race.server == 'tripleheat' %}
-                    <span class="badge bg-danger">TripleHeat</span>
+                    <span class="badge bg-danger">Triple Heat</span>
                     {% elif race.server == 'casual_heat' %}
-                    <span class="badge bg-primary">Casual-Heat</span>
+                    <span class="badge bg-primary">Casual Heat</span>
                     {% elif race.server == 'career' %}
                     <span class="badge bg-warning text-dark">Career</span>
                     {% else %}

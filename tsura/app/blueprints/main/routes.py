@@ -107,8 +107,8 @@ _RACE_SERVERS = ("events", "tripleheat", "casual_heat")
 # Servers selectable on the /races page (key = DB server name).
 RACE_SERVERS = {
     "events": "Event Server",
-    "tripleheat": "TripleHeat",
-    "casual_heat": "Casual-Heat",
+    "tripleheat": "Triple Heat",
+    "casual_heat": "Casual Heat",
     "career": "Career",
 }
 
