@@ -137,4 +137,56 @@
     </tbody>
   </table>
 </div>
+
+<h5 class="mt-4">Penalty points</h5>
+<p class="text-secondary small">Deducted from a driver\u2019s championship total on
+  the <strong>standings only</strong> \u2014 per-race results and credits are untouched.</p>
+{% if pen_season %}
+<div class="card bg-dark border-secondary mb-3">
+  <div class="card-body">
+    <form method="post" action="{{ url_for('career.admin_add_penalty') }}" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="season_id" value="{{ pen_season.id }}">
+      <div class="col-md-4"><label class="form-label small">Driver ({{ pen_season.name }})</label>
+        <select name="steam_id" class="form-select bg-dark text-white border-secondary" required>
+          <option value="" disabled selected>Choose driver\u2026</option>
+          {% for d in pen_drivers %}<option value="{{ d.steam_id }}">{{ d.name }}</option>{% endfor %}
+        </select></div>
+      <div class="col-md-2"><label class="form-label small">Points</label>
+        <input type="number" name="points" min="1" value="5" required
+               class="form-control bg-dark text-white border-secondary"></div>
+      <div class="col-md-4"><label class="form-label small">Reason (optional)</label>
+        <input name="reason" class="form-control bg-dark text-white border-secondary"></div>
+      <div class="col-md-2"><button class="btn btn-warm-red w-100">Apply</button></div>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-secondary">No active season to penalise.</div>
+{% endif %}
+<div class="table-responsive">
+  <table class="table table-dark table-sm align-middle">
+    <thead><tr><th>Season</th><th>Driver</th><th class="text-end">Points</th><th>Reason</th><th>When</th><th data-nosort></th></tr></thead>
+    <tbody>
+      {% for p in penalties %}
+      <tr>
+        <td>{{ p.season_name }}</td>
+        <td>{{ p.driver_name or p.steam_id }}</td>
+        <td class="text-end text-danger">-{{ p.points }}</td>
+        <td>{{ p.reason or '' }}</td>
+        <td class="text-secondary small">{{ p.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="text-end">
+          <form method="post" action="{{ url_for('career.admin_remove_penalty', penalty_id=p.id) }}" class="d-inline"
+                onsubmit="return confirm('Remove this penalty?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn-outline-danger btn-sm">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-secondary">No penalties issued.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

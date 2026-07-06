@@ -486,8 +486,68 @@ def admin():
             s["enrolled"] = cur.fetchone()["n"]
         cur.execute("SELECT * FROM mart.v_career_participants ORDER BY added_at DESC")
         participants = cur.fetchall()
+        cur.execute(
+            "SELECT p.id, p.season_id, p.steam_id, p.points, p.reason, "
+            "       p.created_at, s.name AS season_name, "
+            "       (SELECT dc.driver_name FROM mart.v_career_driver_cars dc "
+            "         WHERE dc.season_id = p.season_id AND dc.steam_id = p.steam_id "
+            "         LIMIT 1) AS driver_name "
+            "FROM career.penalties p "
+            "JOIN career.seasons s ON s.id = p.season_id "
+            "ORDER BY p.created_at DESC")
+        penalties = cur.fetchall()
+        pen_season = _active_season(cur)
+        pen_drivers = []
+        if pen_season:
+            cur.execute(
+                "SELECT DISTINCT steam_id, driver_name AS name "
+                "FROM mart.v_career_driver_cars "
+                "WHERE season_id = %s ORDER BY driver_name", (pen_season["id"],))
+            pen_drivers = cur.fetchall()
     return render_template("career/admin.html", seasons=seasons, axes=AXES,
-                           axis_labels=AXIS_LABELS, participants=participants)
+                           axis_labels=AXIS_LABELS, participants=participants,
+                           penalties=penalties, pen_drivers=pen_drivers,
+                           pen_season=pen_season)
+
+
+@career_bp.route("/admin/penalty/add", methods=["POST"])
+@_admin_required
+def admin_add_penalty():
+    if not _csrf_ok():
+        abort(403)
+    f = request.form
+    try:
+        season_id = int(f["season_id"])
+        sid = int(f["steam_id"])
+        points = int(f["points"])
+        if points <= 0:
+            raise ValueError
+    except (KeyError, ValueError):
+        flash("Invalid penalty — points must be a positive integer.", "danger")
+        return redirect(url_for("career.admin"))
+    reason = (f.get("reason") or "").strip() or None
+    conn = db_pool.get_conn()
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO career.penalties (season_id, steam_id, points, reason, created_by) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (season_id, sid, points, reason, g.current_steam_id))
+    conn.commit()
+    flash(f"Penalty of {points} points applied (standings only).", "success")
+    return redirect(url_for("career.admin"))
+
+
+@career_bp.route("/admin/penalty/<int:penalty_id>/remove", methods=["POST"])
+@_admin_required
+def admin_remove_penalty(penalty_id):
+    if not _csrf_ok():
+        abort(403)
+    conn = db_pool.get_conn()
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM career.penalties WHERE id = %s", (penalty_id,))
+    conn.commit()
+    flash("Penalty removed.", "success")
+    return redirect(url_for("career.admin"))
 
 
 @career_bp.route("/admin/season", methods=["POST"])

@@ -22,7 +22,8 @@
   <table class="table table-dark table-hover align-middle">
     <thead><tr><th>#</th><th>Driver</th><th class="text-end">Races</th>
       <th class="text-end">Wins</th><th class="text-end">Poles</th>
-      <th class="text-end">Fastest Laps</th><th class="text-end">Points</th></tr></thead>
+      <th class="text-end">Fastest Laps</th><th class="text-end" data-nosort>Penalty</th>
+      <th class="text-end">Points</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
@@ -33,10 +34,11 @@
         <td class="text-end">{{ r.wins }}</td>
         <td class="text-end">{{ r.poles }}</td>
         <td class="text-end">{{ r.fastest_laps }}</td>
+        <td class="text-end">{% if r.penalty_points %}<span class="text-danger">-{{ r.penalty_points }}</span>{% else %}<span class="text-secondary">0</span>{% endif %}</td>
         <td class="text-end fw-bold">{{ r.points_total }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="text-secondary">No races scored yet.</td></tr>
+      <tr><td colspan="8" class="text-secondary">No races scored yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

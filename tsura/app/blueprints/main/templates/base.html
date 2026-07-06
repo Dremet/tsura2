@@ -76,6 +76,69 @@
             tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
         });
     </script>
+    <script>
+    // Global click-to-sort for every Bootstrap .table (asc -> desc -> off).
+    // Skip a column with `data-nosort` on its <th>, or an empty header.
+    document.addEventListener("DOMContentLoaded", () => {
+      const TIME_RE = /^(\d+):([0-5]?\d(?:\.\d+)?)$/;      // m:ss(.mmm)
+      const parseVal = (raw) => {
+        const t = (raw || "").trim();
+        if (!t || t === "\u2014" || t === "-") return {n: null, s: ""};
+        const tm = t.match(TIME_RE);
+        if (tm) return {n: parseInt(tm[1], 10) * 60 + parseFloat(tm[2]), s: t};
+        const num = parseFloat(t.replace(/[^0-9.+-]/g, ""));
+        if (!isNaN(num) && /[0-9]/.test(t)) return {n: num, s: t};
+        return {n: null, s: t.toLowerCase()};
+      };
+      const cmp = (a, b, dir) => {
+        let r;
+        if (a.n !== null && b.n !== null) r = a.n - b.n;
+        else if (a.n !== null) r = -1;
+        else if (b.n !== null) r = 1;
+        else r = a.s < b.s ? -1 : a.s > b.s ? 1 : 0;
+        return dir === "desc" ? -r : r;
+      };
+      document.querySelectorAll("table.table").forEach((table) => {
+        const head = table.tHead, body = table.tBodies[0];
+        if (!head || !body) return;
+        const ths = head.rows.length ? Array.from(head.rows[head.rows.length - 1].cells) : [];
+        const dataRows = () => Array.from(body.rows).filter(
+          (r) => !r.querySelector("td[colspan]"));
+        dataRows().forEach((r, i) => { if (r.dataset.i === undefined) r.dataset.i = i; });
+        ths.forEach((th, col) => {
+          if (th.hasAttribute("data-nosort") || !th.textContent.trim()) return;
+          th.style.cursor = "pointer";
+          th.style.userSelect = "none";
+          const caret = document.createElement("span");
+          caret.className = "text-secondary small ms-1";
+          caret.textContent = "\u2195";
+          th.appendChild(caret);
+          th.addEventListener("click", () => {
+            const cur = th.dataset.sort || "none";
+            const next = cur === "none" ? "asc" : cur === "asc" ? "desc" : "none";
+            ths.forEach((o) => {
+              o.dataset.sort = "";
+              const c = o.querySelector("span:last-child");
+              if (c && !o.hasAttribute("data-nosort") && o.textContent.trim())
+                c.textContent = "\u2195";
+            });
+            th.dataset.sort = next;
+            caret.textContent = next === "asc" ? "\u25b2" : next === "desc" ? "\u25bc" : "\u2195";
+            const rows = dataRows();
+            if (next === "none") {
+              rows.sort((a, b) => (a.dataset.i - b.dataset.i));
+            } else {
+              rows.sort((a, b) => cmp(
+                parseVal(a.cells[col] && (a.cells[col].dataset.sort || a.cells[col].textContent)),
+                parseVal(b.cells[col] && (b.cells[col].dataset.sort || b.cells[col].textContent)),
+                next));
+            }
+            rows.forEach((r) => body.appendChild(r));
+          });
+        });
+      });
+    });
+    </script>
 </body>
 
 </html>

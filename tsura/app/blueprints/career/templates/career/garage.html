@@ -24,6 +24,11 @@
     </div>
   </div>
 {% else %}
+  <div id="career-deadline" class="alert alert-secondary py-2 px-3 mb-3 d-flex align-items-center gap-2">
+    <span>⏱</span>
+    <span>Upgrade deadline — cars are built <strong>Mondays 20:55 CEST</strong>. Time left:
+      <strong id="career-deadline-clock" class="text-warning">…</strong></span>
+  </div>
   <div class="d-flex align-items-center mb-3">
     <div class="me-4">Season: <strong>{{ season.name }}</strong> · Base car:
       <strong>{{ season.base_vehicle_name }}</strong></div>
@@ -80,4 +85,30 @@
   <p class="text-secondary small mt-3">Upgrades apply from the next race night. Your tuned car is
     generated automatically and forced onto you in-game by Steam ID.</p>
 {% endif %}
+{% endblock %}
+{% block extra_scripts %}
+<script>
+(function () {
+  var el = document.getElementById("career-deadline-clock");
+  if (!el) return;
+  function berlinNow() {
+    return new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Berlin"}));
+  }
+  function tick() {
+    var now = berlinNow();
+    var t = new Date(now);
+    t.setDate(now.getDate() + ((1 - now.getDay() + 7) % 7)); // next Monday
+    t.setHours(20, 55, 0, 0);
+    if (t <= now) t.setDate(t.getDate() + 7);
+    var ms = t - now;
+    var d = Math.floor(ms / 86400000);
+    var h = Math.floor(ms / 3600000) % 24;
+    var m = Math.floor(ms / 60000) % 60;
+    var s = Math.floor(ms / 1000) % 60;
+    el.textContent = (d ? d + "d " : "") + h + "h " + m + "m " + s + "s";
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
 {% endblock %}
