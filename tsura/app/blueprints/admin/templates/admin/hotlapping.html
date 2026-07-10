@@ -14,6 +14,9 @@
   Saved changes are picked up by the hotlapping server within about a minute:
   it sets the car, {{ cfg.get('events_per_session', 5) }} identical events of
   the chosen track, the start-behind distance, and skips to the next event.
+  <strong>If the track/car was only just uploaded</strong>, hit "Restart
+  server" below — the config re-applies automatically right after boot,
+  once the server has scanned the new files.
 </p>
 
 {% if pending %}

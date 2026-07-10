@@ -893,8 +893,9 @@ def upload(server, kind):
     if saved:
         flash(
             f"Uploaded {len(saved)} {spec['label']} file(s): {', '.join(saved)} — "
-            "loaded at the next server restart (daily ~5:00) or after an "
-            "in-game /refreshfiles.",
+            "the running server scans files only at startup: loaded after the "
+            "next restart (daily ~5:00, plus 20:45 before sessions) or hit "
+            "“Restart server” to use them right away.",
             "success",
         )
     for e in errors:
