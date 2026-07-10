@@ -217,7 +217,9 @@ def index():
         pass
 
     for srv in servers:
-        srv["admins"] = admin_names.get(SERVER_NAME_KEYS.get(srv["name"], ""), [])
+        # Steam reports "serverName/currentEventName" — match on the prefix
+        base_name = srv["name"].split("/")[0].strip()
+        srv["admins"] = admin_names.get(SERVER_NAME_KEYS.get(base_name, ""), [])
 
     servers.sort(key=lambda x: (-x["players"], x["name"].lower()))
 
