@@ -39,6 +39,10 @@
                 <!-- Auth -->
                 <div class="d-flex align-items-center ms-3">
                     {% if current_steam_id %}
+                    {% if admin_servers %}
+                    <a href="{{ url_for('admin.index') }}"
+                       class="btn btn-warning btn-sm me-2 fw-bold">Admin</a>
+                    {% endif %}
                     <a href="{{ url_for('main.driver_profile', driver_id=current_steam_id) }}"
                        class="btn btn-outline-light btn-sm me-2">My Profile</a>
                     <a href="{{ url_for('auth.logout') }}"

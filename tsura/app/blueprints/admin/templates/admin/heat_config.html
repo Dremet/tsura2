@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}{{ meta.label }} Admin — TSURA{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">Admin</a></li>
+    <li class="breadcrumb-item active">{{ meta.label }}</li>
+  </ol>
+</nav>
+
+<h1 class="mb-2" style="color: {{ meta.color }};">{{ meta.label }}</h1>
+<p class="text-secondary mb-4">
+  Changes are saved immediately and used at the <strong>next session start</strong>.
+  Quali/race values marked as ranges are re-randomized for every race within
+  the configured range.
+</p>
+
+<form method="post" action="{{ url_for(endpoint) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-6">
+      <div class="card bg-dark border-secondary h-100">
+        <div class="card-header">Tracks</div>
+        <div class="card-body">
+          <label class="form-label" for="tracks">
+            One track per line: <code>Track Name | weight</code>
+            <span class="text-secondary">(weight optional, default 1 — higher
+            = picked more often, 0 = disabled)</span>
+          </label>
+          <textarea class="form-control font-monospace" id="tracks" name="tracks"
+                    rows="18" spellcheck="false">{{ tracks_text }}</textarea>
+          <div class="form-text">
+            Names must match the in-game level names exactly.
+          </div>
+          <div class="mt-3" style="max-width: 220px;">
+            <label class="form-label" for="number_tracks">Tracks per session</label>
+            <input class="form-control" type="number" id="number_tracks"
+                   name="number_tracks" min="1" max="20"
+                   value="{{ cfg.get('number_tracks', 3) }}" required />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card bg-dark border-secondary mb-4">
+        <div class="card-header">Cars</div>
+        <div class="card-body">
+          {% if server == 'tripleheat' %}
+          <label class="form-label" for="vehicles">
+            One car per line — players can choose between them.
+          </label>
+          <textarea class="form-control font-monospace" id="vehicles" name="vehicles"
+                    rows="5" spellcheck="false">{{ vehicles_text }}</textarea>
+          {% else %}
+          <label class="form-label" for="cars">
+            One car per line: <code>Car Name | weight</code> — one is picked
+            at random per track.
+          </label>
+          <textarea class="form-control font-monospace" id="cars" name="cars"
+                    rows="8" spellcheck="false">{{ cars_text }}</textarea>
+          {% endif %}
+          <div class="form-text">Names must match the in-game vehicle names exactly.</div>
+        </div>
+      </div>
+
+      <div class="card bg-dark border-secondary mb-4">
+        <div class="card-header">Qualifying</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-6 col-md-4">
+              <label class="form-label" for="quali_laps">Laps</label>
+              <input class="form-control" type="number" id="quali_laps" name="quali_laps"
+                     min="1" max="100" value="{{ cfg.get('quali', {}).get('laps', 1) }}" required />
+            </div>
+            <div class="col-6 col-md-4">
+              <label class="form-label" for="quali_max_minutes">Max minutes</label>
+              <input class="form-control" type="number" step="any" id="quali_max_minutes"
+                     name="quali_max_minutes" min="1" max="1000"
+                     value="{{ cfg.get('quali', {}).get('max_minutes', 3) }}" required />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card bg-dark border-secondary mb-4">
+        <div class="card-header">Race</div>
+        <div class="card-body">
+          {% set race = cfg.get('race', {}) %}
+          <div class="row g-3">
+            {% if server == 'tripleheat' %}
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="laps_min">Laps min</label>
+              <input class="form-control" type="number" id="laps_min" name="laps_min"
+                     min="1" max="1000" value="{{ race.get('laps_min', 8) }}" required />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="laps_max">Laps max</label>
+              <input class="form-control" type="number" id="laps_max" name="laps_max"
+                     min="1" max="1000" value="{{ race.get('laps_max', 10) }}" required />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="race_max_minutes">Max minutes</label>
+              <input class="form-control" type="number" step="any" id="race_max_minutes"
+                     name="race_max_minutes" min="1" max="100000"
+                     value="{{ race.get('max_minutes', 1440) }}" required />
+            </div>
+            {% else %}
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="max_laps">Max laps</label>
+              <input class="form-control" type="number" id="max_laps" name="max_laps"
+                     min="1" max="10000" value="{{ race.get('max_laps', 500) }}" required />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="race_max_minutes">Max minutes</label>
+              <input class="form-control" type="number" step="any" id="race_max_minutes"
+                     name="race_max_minutes" min="1" max="100000"
+                     value="{{ race.get('max_minutes', 8) }}" required />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="max_compounds">Max compounds</label>
+              <input class="form-control" type="number" id="max_compounds" name="max_compounds"
+                     min="1" max="2" value="{{ race.get('max_compounds', 2) }}" required />
+              <div class="form-text">1–2, compound count is randomized up to this.</div>
+            </div>
+            {% endif %}
+          </div>
+          <hr class="border-secondary" />
+          <div class="row g-3">
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="fuel_min">Fuel min</label>
+              <input class="form-control" type="number" id="fuel_min" name="fuel_min"
+                     min="1" max="100000" value="{{ race.get('fuel_min', 230) }}" required />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="fuel_max">Fuel max</label>
+              <input class="form-control" type="number" id="fuel_max" name="fuel_max"
+                     min="1" max="100000" value="{{ race.get('fuel_max', 675) }}" required />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="tires_min">Tires min</label>
+              <input class="form-control" type="number" id="tires_min" name="tires_min"
+                     min="1" max="100000" value="{{ race.get('tires_min', 500) }}" required />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="tires_max">Tires max</label>
+              <input class="form-control" type="number" id="tires_max" name="tires_max"
+                     min="1" max="100000" value="{{ race.get('tires_max', 1700) }}" required />
+            </div>
+          </div>
+          <div class="form-text mt-2">
+            Fuel = full-gas seconds per tank (higher = longer stints).
+            Tires = compound endurance (higher = less degradation).
+            A random value inside each range is rolled per race.
+          </div>
+        </div>
+      </div>
+
+      <div class="card bg-dark border-secondary">
+        <div class="card-header">In-game admins</div>
+        <div class="card-body">
+          {% if is_owner %}
+          <label class="form-label" for="ingame_admins">
+            One per line: <code>Steam ID | label</code> — set as in-game
+            <code>/admins</code> at session start.
+          </label>
+          <textarea class="form-control font-monospace" id="ingame_admins"
+                    name="ingame_admins" rows="4" spellcheck="false">{{ admins_text }}</textarea>
+          {% else %}
+          <p class="text-secondary mb-1">Only the site owner can change these:</p>
+          <pre class="mb-0 text-light">{{ admins_text }}</pre>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <button type="submit" class="btn btn-warm-red">Save config</button>
+    <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary ms-2">Back</a>
+  </div>
+</form>
+
+<datalist id="known-tracks">
+  {% for t in track_options %}<option value="{{ t }}"></option>{% endfor %}
+</datalist>
+<datalist id="known-vehicles">
+  {% for v in vehicle_options %}<option value="{{ v }}"></option>{% endfor %}
+</datalist>
+{% endblock %}

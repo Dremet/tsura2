@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Admin — TSURA{% endblock %}
+
+{% block content %}
+<h1 class="mb-2">Admin</h1>
+<p class="text-secondary mb-4">Pick a server to configure.</p>
+
+<div class="row g-4">
+  {% for key in servers %}
+  {% set m = meta[key] %}
+  <div class="col-12 col-sm-6 col-xl-3">
+    <a href="{{ links[key] }}" class="text-decoration-none">
+      <div class="card h-100 bg-dark border-secondary admin-card"
+           style="border-top: 4px solid {{ m.color }} !important;">
+        <div class="card-body">
+          <h3 class="card-title" style="color: {{ m.color }};">{{ m.label }}</h3>
+          <p class="card-text text-secondary mb-0">{{ m.description }}</p>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+
+  {% if is_owner %}
+  <div class="col-12 col-sm-6 col-xl-3">
+    <a href="{{ url_for('admin.admins') }}" class="text-decoration-none">
+      <div class="card h-100 bg-dark border-secondary admin-card"
+           style="border-top: 4px solid #adb5bd !important;">
+        <div class="card-body">
+          <h3 class="card-title text-light">Admins</h3>
+          <p class="card-text text-secondary mb-0">
+            Grant or revoke admin access per server (owner only).
+          </p>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+  .admin-card { transition: transform .1s ease-in-out, box-shadow .1s ease-in-out; }
+  .admin-card:hover { transform: translateY(-3px); box-shadow: 0 .5rem 1rem rgba(0,0,0,.5); }
+</style>
+{% endblock %}

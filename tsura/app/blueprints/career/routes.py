@@ -105,11 +105,10 @@ def _csrf_ok() -> bool:
 
 
 def _is_admin(steam_id) -> bool:
-    if not steam_id:
-        return False
-    with _cur() as cur:
-        cur.execute("SELECT 1 FROM career.admins WHERE steam_id = %s", (steam_id,))
-        return cur.fetchone() is not None
+    """Career panel access: the site owner or a 'career' server admin
+    (webadmin.server_admins, managed at /admin/admins)."""
+    from ..admin.routes import is_server_admin
+    return is_server_admin(steam_id, "career")
 
 
 def _is_participant(steam_id) -> bool:

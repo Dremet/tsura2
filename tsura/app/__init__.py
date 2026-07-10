@@ -12,6 +12,7 @@ from .extensions import db_pool, make_csrf_token
 from .blueprints.main import main_bp
 from .blueprints.auth import auth_bp
 from .blueprints.career import career_bp
+from .blueprints.admin import admin_bp
 
 
 def create_app() -> Flask:
@@ -65,13 +66,22 @@ def create_app() -> Flask:
     def _inject_auth():
         sid = g.get("session_id")
         csrf = make_csrf_token(sid, app.config["SECRET_KEY"]) if sid else None
+        admin_servers = []
+        if g.get("current_steam_id"):
+            try:
+                from .blueprints.admin.routes import user_admin_servers
+                admin_servers = user_admin_servers(g.current_steam_id)
+            except Exception:
+                admin_servers = []
         return {
             "current_steam_id": g.get("current_steam_id"),
             "csrf_token": csrf,
+            "admin_servers": admin_servers,
         }
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(career_bp)
+    app.register_blueprint(admin_bp)
 
     return app

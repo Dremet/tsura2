@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Hotlapping Admin — TSURA{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">Admin</a></li>
+    <li class="breadcrumb-item active">Hotlapping</li>
+  </ol>
+</nav>
+
+<h1 class="mb-2" style="color: {{ meta.color }};">Hotlapping</h1>
+<p class="text-secondary">
+  Saved changes are picked up by the hotlapping server within about a minute:
+  it sets the car, {{ cfg.get('events_per_session', 5) }} identical events of
+  the chosen track, the start-behind distance, and skips to the next event.
+</p>
+
+{% if pending %}
+<div class="alert alert-warning">
+  The saved config has <strong>not been applied yet</strong> — the server
+  picks it up within a minute (or right after its next restart).
+</div>
+{% else %}
+<div class="alert alert-success">
+  The server is running the saved config.
+</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('admin.hotlapping') }}" style="max-width: 640px;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+  <div class="card bg-dark border-secondary">
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label" for="track">Track</label>
+        <input class="form-control" id="track" name="track" list="known-tracks"
+               value="{{ cfg.get('track', '') }}" required spellcheck="false" />
+        <div class="form-text">Must match the in-game level name exactly.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="vehicle">Car</label>
+        <input class="form-control" id="vehicle" name="vehicle" list="known-vehicles"
+               value="{{ cfg.get('vehicle', '') }}" required spellcheck="false" />
+        <div class="form-text">Must match the in-game vehicle name exactly.</div>
+      </div>
+      <div class="row g-3">
+        <div class="col-6">
+          <label class="form-label" for="hotlap_behind_distance">Start-behind distance</label>
+          <input class="form-control" type="number" id="hotlap_behind_distance"
+                 name="hotlap_behind_distance" min="0" max="100000"
+                 value="{{ cfg.get('hotlap_behind_distance', 840) }}" required />
+          <div class="form-text">
+            How far behind the start/finish line you spawn — raise it on
+            tracks where you need a longer run-up to cross the line at speed.
+          </div>
+        </div>
+        <div class="col-6">
+          <label class="form-label" for="events_per_session">Events per session</label>
+          <input class="form-control" type="number" id="events_per_session"
+                 name="events_per_session" min="1" max="20"
+                 value="{{ cfg.get('events_per_session', 5) }}" required />
+          <div class="form-text">Identical events per session (normally 5).</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <button type="submit" class="btn btn-warm-red">Save &amp; apply</button>
+    <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary ms-2">Back</a>
+  </div>
+</form>
+
+<datalist id="known-tracks">
+  {% for t in track_options %}<option value="{{ t }}"></option>{% endfor %}
+</datalist>
+<datalist id="known-vehicles">
+  {% for v in vehicle_options %}<option value="{{ v }}"></option>{% endfor %}
+</datalist>
+{% endblock %}
