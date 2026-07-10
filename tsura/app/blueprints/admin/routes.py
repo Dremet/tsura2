@@ -13,6 +13,7 @@ from __future__ import annotations
 import hmac
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -260,6 +261,29 @@ def _form_num(name: str, label: str, lo: float, hi: float):
     if not lo <= val <= hi:
         raise ValueError(f"{label}: must be between {lo} and {hi}")
     return int(val) if val.is_integer() else val
+
+
+def _form_str(name: str, default: str) -> str:
+    return request.form.get(name, "").strip() or default
+
+
+def _parse_points(text: str, what: str) -> list:
+    """Comma/space separated points table, P1 first, 1-20 entries."""
+    vals = [v for v in re.split(r"[,\s]+", text.strip()) if v]
+    try:
+        pts = [int(v) for v in vals]
+    except ValueError:
+        raise ValueError(f"{what}: whole numbers separated by commas")
+    if not pts or len(pts) > 20:
+        raise ValueError(f"{what}: between 1 and 20 values")
+    return pts
+
+
+def _point_commands(points) -> list:
+    points = list(points)[:20]
+    cmds = [f"/points.position{i} = {p}" for i, p in enumerate(points, 1)]
+    cmds += [f"/points.position{i} = 0" for i in range(len(points) + 1, 21)]
+    return cmds
 
 
 def _form_range(prefix: str, label: str, lo: int, hi: int) -> tuple:
@@ -535,8 +559,18 @@ def _heat_panel(server: str):
             cfg["quali"] = {
                 "laps": _form_int("quali_laps", "Quali laps", 1, 100),
                 "max_minutes": _form_num("quali_max_minutes", "Quali max minutes", 1, 1000),
+                "start_style": _form_str("quali_start_style", "Countdown"),
+                "contact_rules": _form_str("quali_contact_rules", "EqualGhosts"),
+                "points": _parse_points(
+                    request.form.get("quali_points", "") or "3, 2, 1", "Quali points"),
             }
-            race = {}
+            race = {
+                "start_style": _form_str("race_start_style", "Random"),
+                "contact_rules": _form_str("race_contact_rules", "Normal"),
+                "points": _parse_points(
+                    request.form.get("race_points", "") or "20, 16, 13, 10, 8, 6, 4, 3, 2, 1",
+                    "Race points"),
+            }
             if server == "tripleheat":
                 race["laps_min"], race["laps_max"] = _form_range("laps", "Race laps", 1, 1000)
             else:
@@ -660,6 +694,107 @@ def events():
         **_upload_context("events"),
         **_control_context("events"),
     )
+
+
+# Optional fields on the event-server panel; only filled fields are sent.
+EVENT_PUSH_FIELDS = [
+    ("max_laps", "/race.maxLaps", "int"),
+    ("max_minutes", "/race.maxMinutes", "num"),
+    ("start_style", "/race.startStyle", "str"),
+    ("starting_order", "/race.startingOrder", "str"),
+    ("contact_rules", "/race.ContactRules", "str"),
+    ("fuel_on", "/fuel.fuelOn", "bool"),
+    ("fuel_full_gas_time", "/fuelFullGasTime", "int"),
+    ("tire_wear_on", "/tireWear.tireWearOn", "bool"),
+    ("compound_count", "/tireWear.tireCompoundCount", "int"),
+    ("compound1_endurance", "/tireWear.compound1Endurance", "int"),
+    ("compound2_endurance", "/tireWear.compound2Endurance", "int"),
+    ("collision_damage_on", "/damage.collisionDamageOn", "bool"),
+    ("drafting_on", "/drafting.draftingOn", "bool"),
+]
+
+
+@admin_bp.route("/events/push", methods=["POST"])
+@_server_admin_required("events")
+def events_push():
+    """One-shot push of race settings to the running event server.
+
+    Nothing re-applies these later — in-game changes made afterwards always
+    take precedence (explicitly wanted for the manually hosted server).
+    """
+    if not _csrf_ok():
+        abort(400)
+    commands, errors = [], []
+    for name, cmd, typ in EVENT_PUSH_FIELDS:
+        raw = request.form.get(name, "").strip()
+        if not raw:
+            continue
+        try:
+            if typ == "int":
+                val = int(raw)
+            elif typ == "num":
+                v = float(raw)
+                val = int(v) if v.is_integer() else v
+            elif typ == "bool":
+                val = 1 if raw in ("1", "true", "on", "yes") else 0
+            else:
+                val = raw
+        except ValueError:
+            errors.append(f"{name}: '{raw}' is not a number")
+            continue
+        commands.append(f"{cmd} = {val}")
+    pts = request.form.get("points", "").strip()
+    if pts:
+        try:
+            commands += _point_commands(_parse_points(pts, "Points"))
+        except ValueError as exc:
+            errors.append(str(exc))
+    for ln, line in enumerate(request.form.get("raw_commands", "").splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        if not line.startswith("/"):
+            errors.append(f"Custom command line {ln}: must start with /")
+            continue
+        commands.append(line)
+    if errors:
+        for e in errors:
+            flash(e, "danger")
+        return redirect(url_for("admin.events"))
+    if not commands:
+        flash("Nothing to send — all fields were empty.", "warning")
+        return redirect(url_for("admin.events"))
+    if not _server_running("events"):
+        flash("The event server is offline — nothing was sent.", "danger")
+        return redirect(url_for("admin.events"))
+    scripts_dir = os.path.join(SERVER_HOME["events"], "server", "config", "Scripts")
+    autorun = os.path.join(scripts_dir, "autorun.src")
+    if os.path.exists(autorun):
+        flash("The server is busy with another script — try again in a "
+              "few seconds.", "warning")
+        return redirect(url_for("admin.events"))
+    try:
+        fd, tmp = tempfile.mkstemp(dir=scripts_dir, prefix=".push.")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("\n".join(commands) + "\n")
+        os.chmod(tmp, 0o664)
+        os.replace(tmp, autorun)
+    except OSError as exc:
+        flash(f"Could not send commands: {exc}", "danger")
+        return redirect(url_for("admin.events"))
+    try:
+        log_path = os.path.join(ACTION_LOG_DIR, "events.log")
+        with open(log_path, "a") as lf:
+            lf.write(f"\n=== {datetime.now():%Y-%m-%d %H:%M:%S} settings push "
+                     f"by {g.current_steam_id}\n")
+            lf.write("\n".join(commands) + "\n")
+        os.chmod(log_path, 0o664)
+    except OSError:
+        pass
+    flash(f"Sent {len(commands)} command(s) to the event server. In-game "
+          "changes made afterwards stay in effect until the next push.",
+          "success")
+    return redirect(url_for("admin.events"))
 
 
 @admin_bp.route("/<server>/action/<action>", methods=["POST"])

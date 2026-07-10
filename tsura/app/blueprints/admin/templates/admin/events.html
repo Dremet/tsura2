@@ -36,5 +36,105 @@
   </div>
 </div>
 
+<div class="card bg-dark border-secondary mt-4" style="max-width: 900px;">
+  <div class="card-header">Push race settings to the running server</div>
+  <div class="card-body">
+    <p class="text-secondary">
+      Only the fields you fill in are sent — everything else stays as it is.
+      This is a one-time push: <strong>in-game changes made afterwards always
+      take precedence</strong> until the next push.
+    </p>
+    <form method="post" action="{{ url_for('admin.events_push') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <div class="row g-3">
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="max_laps">Max laps</label>
+          <input class="form-control" type="number" id="max_laps" name="max_laps" min="1" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="max_minutes">Max minutes</label>
+          <input class="form-control" type="number" step="any" id="max_minutes" name="max_minutes" min="1" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="start_style">Start style</label>
+          <input class="form-control" id="start_style" name="start_style" list="start-styles" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="contact_rules">Contact rules</label>
+          <input class="form-control" id="contact_rules" name="contact_rules" list="contact-rules" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="starting_order">Starting order</label>
+          <input class="form-control" id="starting_order" name="starting_order"
+                 placeholder="e.g. 3 = Last Event" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="fuel_on">Fuel</label>
+          <select class="form-select" id="fuel_on" name="fuel_on">
+            <option value="">— leave —</option><option value="1">On</option><option value="0">Off</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="fuel_full_gas_time">Fuel: full-gas time</label>
+          <input class="form-control" type="number" id="fuel_full_gas_time" name="fuel_full_gas_time" min="1" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="tire_wear_on">Tire wear</label>
+          <select class="form-select" id="tire_wear_on" name="tire_wear_on">
+            <option value="">— leave —</option><option value="1">On</option><option value="0">Off</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="compound_count">Tire compounds</label>
+          <input class="form-control" type="number" id="compound_count" name="compound_count" min="1" max="3" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="compound1_endurance">Compound 1 endurance</label>
+          <input class="form-control" type="number" id="compound1_endurance" name="compound1_endurance" min="1" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="compound2_endurance">Compound 2 endurance</label>
+          <input class="form-control" type="number" id="compound2_endurance" name="compound2_endurance" min="1" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="collision_damage_on">Collision damage</label>
+          <select class="form-select" id="collision_damage_on" name="collision_damage_on">
+            <option value="">— leave —</option><option value="1">On</option><option value="0">Off</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="drafting_on">Drafting</label>
+          <select class="form-select" id="drafting_on" name="drafting_on">
+            <option value="">— leave —</option><option value="1">On</option><option value="0">Off</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="points">Points (P1 first, comma-separated)</label>
+          <input class="form-control font-monospace" id="points" name="points"
+                 placeholder="leave empty to keep current points" />
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="raw_commands">
+            Custom commands <span class="text-secondary">(advanced — one per
+            line, anything the in-game console accepts)</span>
+          </label>
+          <textarea class="form-control font-monospace" id="raw_commands" name="raw_commands"
+                    rows="3" spellcheck="false" placeholder="/race.raceMode = Race"></textarea>
+        </div>
+      </div>
+      <button class="btn btn-warm-red mt-3" type="submit">Send to server</button>
+    </form>
+  </div>
+</div>
+
+<datalist id="start-styles">
+  <option value="Countdown"></option>
+  <option value="Random"></option>
+</datalist>
+<datalist id="contact-rules">
+  <option value="Normal"></option>
+  <option value="EqualGhosts"></option>
+</datalist>
+
 {% include "admin/_server_control.html" %}
 {% endblock %}

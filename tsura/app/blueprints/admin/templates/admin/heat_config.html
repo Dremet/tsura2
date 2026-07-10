@@ -69,17 +69,33 @@
       <div class="card bg-dark border-secondary mb-4">
         <div class="card-header">Qualifying</div>
         <div class="card-body">
+          {% set quali = cfg.get('quali', {}) %}
           <div class="row g-3">
-            <div class="col-6 col-md-4">
+            <div class="col-6 col-md-3">
               <label class="form-label" for="quali_laps">Laps</label>
               <input class="form-control" type="number" id="quali_laps" name="quali_laps"
-                     min="1" max="100" value="{{ cfg.get('quali', {}).get('laps', 1) }}" required />
+                     min="1" max="100" value="{{ quali.get('laps', 1) }}" required />
             </div>
-            <div class="col-6 col-md-4">
+            <div class="col-6 col-md-3">
               <label class="form-label" for="quali_max_minutes">Max minutes</label>
               <input class="form-control" type="number" step="any" id="quali_max_minutes"
                      name="quali_max_minutes" min="1" max="1000"
-                     value="{{ cfg.get('quali', {}).get('max_minutes', 3) }}" required />
+                     value="{{ quali.get('max_minutes', 3) }}" required />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="quali_start_style">Start style</label>
+              <input class="form-control" id="quali_start_style" name="quali_start_style"
+                     list="start-styles" value="{{ quali.get('start_style', 'Countdown') }}" />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="quali_contact_rules">Contact rules</label>
+              <input class="form-control" id="quali_contact_rules" name="quali_contact_rules"
+                     list="contact-rules" value="{{ quali.get('contact_rules', 'EqualGhosts') }}" />
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="quali_points">Points (P1 first, comma-separated)</label>
+              <input class="form-control font-monospace" id="quali_points" name="quali_points"
+                     value="{{ quali.get('points', [3, 2, 1]) | join(', ') }}" />
             </div>
           </div>
         </div>
@@ -155,6 +171,24 @@
             Tires = compound endurance (higher = less degradation).
             A random value inside each range is rolled per race.
           </div>
+          <hr class="border-secondary" />
+          <div class="row g-3">
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="race_start_style">Start style</label>
+              <input class="form-control" id="race_start_style" name="race_start_style"
+                     list="start-styles" value="{{ race.get('start_style', 'Random') }}" />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="race_contact_rules">Contact rules</label>
+              <input class="form-control" id="race_contact_rules" name="race_contact_rules"
+                     list="contact-rules" value="{{ race.get('contact_rules', 'Normal') }}" />
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="race_points">Points (P1 first, comma-separated)</label>
+              <input class="form-control font-monospace" id="race_points" name="race_points"
+                     value="{{ race.get('points', [20, 16, 13, 10, 8, 6, 4, 3, 2, 1]) | join(', ') }}" />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -193,6 +227,14 @@
 {% include "admin/_uploads.html" %}
 {% include "admin/_server_control.html" %}
 
+<datalist id="start-styles">
+  <option value="Countdown"></option>
+  <option value="Random"></option>
+</datalist>
+<datalist id="contact-rules">
+  <option value="Normal"></option>
+  <option value="EqualGhosts"></option>
+</datalist>
 <datalist id="known-tracks">
   {% for t in track_options %}<option value="{{ t }}"></option>{% endfor %}
 </datalist>
