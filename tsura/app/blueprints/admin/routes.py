@@ -224,23 +224,6 @@ def _parse_names(text: str, what: str) -> list:
     return items
 
 
-def _parse_admins(text: str) -> list:
-    """Lines of 'steam_id | label' for the in-game admin list."""
-    admins = []
-    for ln, line in enumerate(text.splitlines(), 1):
-        line = line.strip()
-        if not line:
-            continue
-        sid, _, label = line.partition("|")
-        sid = sid.strip()
-        if not sid.isdigit():
-            raise ValueError(f"In-game admins, line {ln}: '{sid}' is not a Steam ID")
-        admins.append([sid, label.strip() or sid])
-    if not admins:
-        raise ValueError("In-game admins: at least one entry is required")
-    return admins
-
-
 def _form_int(name: str, label: str, lo: int, hi: int) -> int:
     raw = request.form.get(name, "").strip()
     try:
@@ -322,8 +305,71 @@ def _fmt_weighted(items) -> str:
     return "\n".join(f"{name} | {weight:g}" for name, weight in items)
 
 
-def _fmt_admins(items) -> str:
-    return "\n".join(f"{sid} | {label}" for sid, label in items)
+# -------------------------------------------------- advanced event params
+# All in-game event settings become overridable per quali/race. The source
+# of truth for what exists is the server's own Scripts/eventsettings.json
+# (host/port/password live elsewhere in game.json and are never exposed).
+PARAM_SKIP_PREFIXES = ("race.points",)  # has its own UI
+
+
+def _event_param_specs(server: str) -> list:
+    """[(section, [(path, default), ...]), ...] from eventsettings.json."""
+    path = os.path.join(SERVER_HOME[server], "server", "config",
+                        "Scripts", "eventsettings.json")
+    try:
+        with open(path, encoding="utf-8-sig") as fh:
+            tree = json.load(fh)
+    except Exception:
+        return []
+    sections = []
+    for section, body in tree.items():
+        if not isinstance(body, dict):
+            continue
+        fields = []
+        def walk(obj, prefix):
+            for key, val in obj.items():
+                p = f"{prefix}.{key}"
+                if any(p.startswith(s) for s in PARAM_SKIP_PREFIXES):
+                    continue
+                if isinstance(val, dict):
+                    walk(val, p)
+                elif isinstance(val, (int, float, bool)):
+                    fields.append((p, int(val) if isinstance(val, bool) else val))
+        walk(body, section)
+        if fields:
+            sections.append((section, fields))
+    return sections
+
+
+def _valid_param_path(p: str) -> bool:
+    return bool(p) and all(c.isalnum() or c in "._" for c in p)
+
+
+def _parse_param_overrides(prefix: str, what: str) -> dict:
+    """Collect '<prefix>__<param.path>' form fields; empty = not overridden."""
+    out = {}
+    for field, raw in request.form.items():
+        if not field.startswith(prefix):
+            continue
+        path = field[len(prefix):]
+        raw = raw.strip()
+        if not raw or not _valid_param_path(path):
+            continue
+        low = raw.lower()
+        if low in ("true", "on"):
+            val = 1
+        elif low in ("false", "off"):
+            val = 0
+        else:
+            try:
+                f = float(raw)
+                val = int(f) if f.is_integer() else f
+            except ValueError:
+                raise ValueError(
+                    f"{what} parameter {path}: '{raw}' is not a number "
+                    "(use 1/0 for on/off)")
+        out[path] = val
+    return out
 
 
 # ---------------------------------------------------------------- uploads
@@ -380,6 +426,42 @@ def _server_running(server: str) -> bool:
 
 def _control_context(server: str) -> dict:
     return {"control_server": server, "server_up": _server_running(server)}
+
+
+def _sync_ingame_admins() -> None:
+    """The web admin lists ARE the in-game admin lists.
+
+    Mirror webadmin.server_admins (owner always first) into every server's
+    config JSON — read by the session-start scripts (TH/CH), the hotlapping
+    applier and career's create_autorun — and push the new list to the
+    running TH/CH/events servers right away. The push sends ONLY /admins
+    commands: running sessions are never interrupted.
+    """
+    try:
+        with _cur() as cur:
+            cur.execute(
+                "SELECT a.server, a.steam_id, p.driver_name"
+                "  FROM webadmin.server_admins a"
+                "  LEFT JOIN mart.v_driver_profile p USING (steam_id)"
+            )
+            rows = cur.fetchall()
+    except Exception:
+        return
+    for server in SERVER_UNIX_USER:
+        admins = [[str(OWNER_STEAM_ID), "owner"]]
+        for r in rows:
+            if r["server"] == server and int(r["steam_id"]) != OWNER_STEAM_ID:
+                admins.append([str(r["steam_id"]), r["driver_name"] or ""])
+        cfg = _load_config(server)
+        if cfg.get("ingame_admins") == admins:
+            continue
+        cfg["ingame_admins"] = admins
+        try:
+            _save_config(server, cfg)
+        except OSError:
+            continue
+        if server in ("tripleheat", "casual_heat", "events"):
+            _apply_ingame_admins_now(server, admins)
 
 
 def _apply_ingame_admins_now(server: str, admins) -> str:
@@ -580,17 +662,11 @@ def _heat_panel(server: str):
             race["fuel_min"], race["fuel_max"] = _form_range("fuel", "Fuel (full-gas time)", 1, 100000)
             race["tires_min"], race["tires_max"] = _form_range("tires", "Tire endurance", 1, 100000)
             cfg["race"] = race
-            admins_note = None
-            if owner and request.form.get("ingame_admins") is not None:
-                old_admins = cfg.get("ingame_admins")
-                cfg["ingame_admins"] = _parse_admins(request.form["ingame_admins"])
-                if cfg["ingame_admins"] != old_admins:
-                    admins_note = _apply_ingame_admins_now(server, cfg["ingame_admins"])
+            cfg["quali"]["params"] = _parse_param_overrides("qp__", "Quali")
+            cfg["race"]["params"] = _parse_param_overrides("rp__", "Race")
             _save_config(server, cfg)
-            msg = f"{meta['label']} config saved — used at the next session start."
-            if admins_note:
-                msg += f" In-game admins: {admins_note}."
-            flash(msg, "success")
+            flash(f"{meta['label']} config saved — used at the next session start.",
+                  "success")
         except ValueError as exc:
             flash(str(exc), "danger")
         except OSError as exc:
@@ -607,10 +683,12 @@ def _heat_panel(server: str):
         tracks_text=_fmt_weighted(cfg.get("tracks", [])),
         cars_text=_fmt_weighted(cfg.get("cars", [])) if server == "casual_heat" else "",
         vehicles_text="\n".join(cfg.get("vehicles", [])) if server == "tripleheat" else "",
-        admins_text=_fmt_admins(cfg.get("ingame_admins", [])),
         is_owner=owner,
         track_options=_known_tracks(),
         vehicle_options=_known_vehicles(),
+        param_specs=_event_param_specs(server),
+        quali_params=cfg.get("quali", {}).get("params", {}),
+        race_params=cfg.get("race", {}).get("params", {}),
         **_upload_context(server),
         **_control_context(server),
     )
@@ -1007,7 +1085,9 @@ def admins_add():
             (server, steam_id, name, g.current_steam_id),
         )
         cur.connection.commit()
-    flash(f"{name or steam_id} is now a {SERVERS[server]['label']} admin.", "success")
+    _sync_ingame_admins()
+    flash(f"{name or steam_id} is now a {SERVERS[server]['label']} admin "
+          "(panel access + in-game admin).", "success")
     return redirect(url_for("admin.admins"))
 
 
@@ -1029,5 +1109,6 @@ def admins_remove():
             (server, steam_id),
         )
         cur.connection.commit()
-    flash("Admin removed.", "success")
+    _sync_ingame_admins()
+    flash("Admin removed (panel access + in-game).", "success")
     return redirect(url_for("admin.admins"))

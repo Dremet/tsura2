@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Career Race — TSURA{% endblock %}
 {% block content %}
+{% include "career/_subnav.html" %}
 <a href="{{ url_for('career.results') }}" class="btn btn-outline-light btn-sm mb-3">← All results</a>
 <h1 class="mb-1">{{ header.track_name }}</h1>
 <p class="text-secondary">{{ header.utc_start_time.strftime('%Y-%m-%d %H:%M UTC') }}

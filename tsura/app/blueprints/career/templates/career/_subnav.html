@@ -1,0 +1,19 @@
+{# Persistent career navigation, shown on every career page #}
+{% set ep = request.endpoint %}
+<div class="d-flex flex-wrap gap-2 justify-content-end mb-3 ms-auto">
+  <a href="{{ url_for('career.home') }}"
+     class="btn btn-sm {{ 'btn-light' if ep == 'career.home' else 'btn-outline-light' }}">Overview</a>
+  <a href="{{ url_for('career.standings') }}"
+     class="btn btn-sm {{ 'btn-light' if ep == 'career.standings' else 'btn-outline-light' }}">Standings</a>
+  <a href="{{ url_for('career.upgrades') }}"
+     class="btn btn-sm {{ 'btn-light' if ep == 'career.upgrades' else 'btn-outline-light' }}">Upgrades</a>
+  <a href="{{ url_for('career.results') }}"
+     class="btn btn-sm {{ 'btn-light' if ep in ('career.results', 'career.result_detail') else 'btn-outline-light' }}">Results</a>
+  {% if current_steam_id %}
+  <a href="{{ url_for('career.garage') }}"
+     class="btn btn-sm {{ 'btn-light' if ep == 'career.garage' else 'btn-outline-light' }}">Garage</a>
+  {% endif %}
+  {% if career_is_admin %}
+  <a href="{{ url_for('career.admin') }}" class="btn btn-sm btn-warm-red">Admin</a>
+  {% endif %}
+</div>

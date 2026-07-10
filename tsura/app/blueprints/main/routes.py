@@ -143,6 +143,34 @@ def _last_day_summary(cur, server: str) -> list:
 # --------------------------------------------------------------------------- #
 #  INDEX                                                                      #
 # --------------------------------------------------------------------------- #
+# live server name (Steam master) -> admin-area server key
+SERVER_NAME_KEYS = {
+    "#1 Event Server": "events",
+    "#2 Hotlapping": "hotlapping",
+    "#3 TripleHeat": "tripleheat",
+    "Casual Wed Heat": "casual_heat",
+    "TSURA Career": "career",
+}
+
+
+def _server_admin_names(cur):
+    """server key -> [{steam_id, name}] from the web admin lists."""
+    out = {}
+    try:
+        cur.execute(
+            "SELECT a.server, a.steam_id, p.driver_name"
+            "  FROM webadmin.server_admins a"
+            "  LEFT JOIN mart.v_driver_profile p USING (steam_id)"
+            " ORDER BY p.driver_name NULLS LAST, a.steam_id"
+        )
+        for r in cur.fetchall():
+            out.setdefault(r["server"], []).append(
+                {"steam_id": r["steam_id"], "name": r["driver_name"]})
+    except Exception:
+        pass
+    return out
+
+
 @main_bp.route("/")
 def index():
     """Landing page: per-server last-day summaries, hotlap combo, server status."""
@@ -165,6 +193,8 @@ def index():
         )
         hotlap = cur.fetchone()
 
+        admin_names = _server_admin_names(cur)
+
         summary_events = _last_day_summary(cur, "events")
         summary_heats  = _last_day_summary(cur, "tripleheat")
         summary_casual = _last_day_summary(cur, "casual_heat")
@@ -185,6 +215,9 @@ def index():
             )
     except Exception:
         pass
+
+    for srv in servers:
+        srv["admins"] = admin_names.get(SERVER_NAME_KEYS.get(srv["name"], ""), [])
 
     servers.sort(key=lambda x: (-x["players"], x["name"].lower()))
 

@@ -91,7 +91,15 @@
                 <tbody>
                     {% for srv in servers %}
                     <tr>
-                        <td>{{ srv.name }}</td>
+                        <td>
+                            {{ srv.name }}
+                            {% if srv.admins %}
+                            <div class="small text-secondary">
+                                Admins:
+                                {% for a in srv.admins %}{% if a.name %}<a href="{{ url_for('main.driver_profile', driver_id=a.steam_id) }}" class="link-secondary">{{ a.name }}</a>{% else %}{{ a.steam_id }}{% endif %}{{ ", " if not loop.last }}{% endfor %}
+                            </div>
+                            {% endif %}
+                        </td>
                         <td>
                             {{ srv.players }}/{{ srv.max_players }}
                             {% if srv.secure %}&#128274;{% endif %}

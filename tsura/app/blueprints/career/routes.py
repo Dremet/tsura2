@@ -90,6 +90,14 @@ def _career_vehicles():
     return career_vehicles
 
 
+@career_bp.context_processor
+def _inject_career_admin():
+    try:
+        return {"career_is_admin": _is_admin(g.get("current_steam_id"))}
+    except Exception:
+        return {"career_is_admin": False}
+
+
 # ----------------------------------------------------------------- helpers
 def _cur():
     return db_pool.get_conn().cursor(row_factory=psycopg.rows.dict_row)

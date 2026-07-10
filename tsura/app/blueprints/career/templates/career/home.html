@@ -3,12 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
   <h1 class="mb-0">TSU Career</h1>
-  <div>
-    <a href="{{ url_for('career.standings') }}" class="btn btn-outline-light btn-sm">Standings</a>
-    <a href="{{ url_for('career.upgrades') }}" class="btn btn-outline-light btn-sm">Upgrades</a>
-    <a href="{{ url_for('career.results') }}" class="btn btn-outline-light btn-sm">Results</a>
-    {% if is_admin %}<a href="{{ url_for('career.admin') }}" class="btn btn-warm-red btn-sm">Admin</a>{% endif %}
-  </div>
+  {% include "career/_subnav.html" %}
 </div>
 
 <div class="card bg-dark border-secondary mb-4">
