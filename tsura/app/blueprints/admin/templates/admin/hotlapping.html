@@ -66,9 +66,16 @@
     </div>
   </div>
 
-  <div class="mt-4">
+  <div class="mt-4 d-flex align-items-center gap-3 flex-wrap">
     <button type="submit" class="btn btn-warm-red">Save &amp; apply</button>
-    <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary ms-2">Back</a>
+    <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary">Back</a>
+    <div class="form-check ms-2">
+      <input class="form-check-input" type="checkbox" id="allow_new" name="allow_new" value="1" />
+      <label class="form-check-label text-secondary" for="allow_new">
+        Allow new names — skip the check whether track/car are known
+        (for freshly uploaded content)
+      </label>
+    </div>
   </div>
 </form>
 

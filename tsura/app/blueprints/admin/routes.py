@@ -390,6 +390,86 @@ def _apply_ingame_admins_now(server: str, admins) -> str:
         return f"could not reach the server ({exc}) — {fallback}"
 
 
+# ----------------------------------------------------- content validation
+VEH_NAME_CACHE = "/srv/tsura/server_config/.veh_names.{server}.json"
+# world-readable copy of the vehicle tools (same one the career blueprint uses)
+VEH_TOOLS_DIR = "/home/career/career_tools"
+
+
+def _server_veh_names(server: str) -> set:
+    """Vehicle names parsed from the server's .veh files (cached by
+    mtime+size). Incomplete: built-in game vehicles have no file and some
+    modded .veh don't parse — callers must union other name sources."""
+    try:
+        if VEH_TOOLS_DIR not in __import__("sys").path:
+            __import__("sys").path.insert(0, VEH_TOOLS_DIR)
+        import tsu_veh
+        cache_path = VEH_NAME_CACHE.format(server=server)
+        cache = _load_json(cache_path) or {}
+        vdir = _upload_dir(server, "vehicle")
+        out, new_cache, dirty = set(), {}, False
+        for entry in os.scandir(vdir):
+            if not entry.is_file() or not entry.name.lower().endswith(".veh"):
+                continue
+            st = entry.stat()
+            key = f"{st.st_mtime_ns}:{st.st_size}"
+            cached = cache.get(entry.name)
+            if cached and cached.get("key") == key:
+                name = cached.get("name")
+            else:
+                dirty = True
+                try:
+                    veh = tsu_veh.read_veh(entry.path)
+                    name = veh.get("name") if isinstance(veh, dict) else None
+                except Exception:
+                    name = None
+                cached = {"key": key, "name": name}
+            new_cache[entry.name] = cached
+            if cached.get("name"):
+                out.add(cached["name"])
+        if dirty or len(new_cache) != len(cache):
+            with open(cache_path, "w", encoding="utf-8") as fh:
+                json.dump(new_cache, fh)
+            os.chmod(cache_path, 0o664)
+        return out
+    except Exception:
+        return set()
+
+
+def _check_content_names(kind: str, names, server: str, extra_known=()) -> None:
+    """Raise ValueError if a name is unknown on the TSURA servers.
+
+    Known = every track/car ever driven on any TSURA server (DB) + names
+    parsed from the server's .veh files + names in the currently saved
+    config (extra_known). Case-only mismatches get a spelling suggestion.
+    Can be skipped with the 'allow_new' checkbox for freshly uploaded
+    content the servers have never seen.
+    """
+    if request.form.get("allow_new") == "1":
+        return
+    known = set(_known_tracks() if kind == "track" else _known_vehicles())
+    if kind == "vehicle" and server in UPLOAD_SERVERS:
+        known |= _server_veh_names(server)
+    known |= set(extra_known)
+    by_lower = {k.lower(): k for k in known}
+    problems = []
+    for n in names:
+        if n in known:
+            continue
+        suggestion = by_lower.get(n.lower())
+        if suggestion:
+            problems.append(f"'{n}' — did you mean '{suggestion}'?")
+        else:
+            problems.append(f"'{n}'")
+    if problems:
+        label = "track" if kind == "track" else "car"
+        raise ValueError(
+            f"Unknown {label} name(s): " + "; ".join(problems) +
+            ". Check the exact in-game spelling — or tick “Allow new names” "
+            "if this is freshly uploaded content."
+        )
+
+
 # ---------------------------------------------------------------- routes
 @admin_bp.route("/")
 def index():
@@ -438,12 +518,20 @@ def _heat_panel(server: str):
             abort(400)
         cfg = _load_config(server)
         try:
+            old_tracks = [t for t, _w in cfg.get("tracks", [])]
+            old_cars = (cfg.get("vehicles", []) if server == "tripleheat"
+                        else [c for c, _w in cfg.get("cars", [])])
             cfg["number_tracks"] = _form_int("number_tracks", "Tracks per session", 1, 20)
             cfg["tracks"] = _parse_weighted(request.form.get("tracks", ""), "Tracks")
             if server == "tripleheat":
                 cfg["vehicles"] = _parse_names(request.form.get("vehicles", ""), "Cars")
+                new_cars = cfg["vehicles"]
             else:
                 cfg["cars"] = _parse_weighted(request.form.get("cars", ""), "Cars")
+                new_cars = [c for c, _w in cfg["cars"]]
+            _check_content_names("track", [t for t, _w in cfg["tracks"]],
+                                 server, extra_known=old_tracks)
+            _check_content_names("vehicle", new_cars, server, extra_known=old_cars)
             cfg["quali"] = {
                 "laps": _form_int("quali_laps", "Quali laps", 1, 100),
                 "max_minutes": _form_num("quali_max_minutes", "Quali max minutes", 1, 1000),
@@ -524,6 +612,10 @@ def hotlapping():
                         f"'{name}' contains both quote characters — "
                         "the game console cannot quote that name"
                     )
+            _check_content_names("track", [track], "hotlapping",
+                                 extra_known=[cfg.get("track", "")])
+            _check_content_names("vehicle", [vehicle], "hotlapping",
+                                 extra_known=[cfg.get("vehicle", "")])
             cfg["track"] = track
             cfg["vehicle"] = vehicle
             cfg["hotlap_behind_distance"] = _form_int(
