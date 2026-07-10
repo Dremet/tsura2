@@ -675,16 +675,25 @@ def server_action(server, action):
     back = redirect(url_for(PANEL_ENDPOINT.get(server, "admin.index"))
                     if server != "career" else url_for("career.admin"))
     try:
-        log_path = os.path.join(ACTION_LOG_DIR, f"{server}.log")
-        with open(log_path, "a") as lf:
+        # logging is best-effort — never block the action on it
+        lf = None
+        try:
+            log_path = os.path.join(ACTION_LOG_DIR, f"{server}.log")
+            lf = open(log_path, "a")
+            os.chmod(log_path, 0o664)
             lf.write(f"\n=== {datetime.now():%Y-%m-%d %H:%M:%S} {action} "
                      f"triggered by {g.current_steam_id}\n")
             lf.flush()
-            proc = subprocess.Popen(
-                ["sudo", "-n", "-u", user, script],
-                stdout=lf, stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
+        except OSError:
+            lf = None
+        proc = subprocess.Popen(
+            ["sudo", "-n", "-u", user, script],
+            stdout=lf if lf else subprocess.DEVNULL,
+            stderr=subprocess.STDOUT if lf else subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        if lf:
+            lf.close()
         # sudo fails immediately (exit 1) if the sudoers rule is missing
         try:
             rc = proc.wait(timeout=2)
