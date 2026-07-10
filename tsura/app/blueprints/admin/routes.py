@@ -306,20 +306,91 @@ def _fmt_weighted(items) -> str:
 
 
 # -------------------------------------------------- advanced event params
-# All in-game event settings become overridable per quali/race. The source
-# of truth for what exists is the server's own Scripts/eventsettings.json
-# (host/port/password live elsewhere in game.json and are never exposed).
-PARAM_SKIP_PREFIXES = ("race.points",)  # has its own UI
+# All in-game event settings are shown pre-filled with the server's CURRENT
+# values (game.json eventSettings, i.e. the state loaded at boot) and are
+# overridable per quali/race. Only values that DIFFER from the current
+# default are stored and sent — so the pre-filled form is a no-op until
+# something is actually changed. host/port/password live outside
+# eventSettings and are never exposed.
+PARAM_SKIP_PREFIXES = ()
+
+# values the scripts randomize per race — overriding them disables that
+RANDOMIZED_PATHS = {
+    "tripleheat": {"race.maxLaps", "fuel.fuelFullGasTime",
+                   "tireWear.compound1Endurance"},
+    "casual_heat": {"fuel.fuelFullGasTime", "tireWear.tireCompoundCount",
+                    "tireWear.compound1Endurance",
+                    "tireWear.compound2Endurance"},
+}
+
+
+def _points_defaults(points):
+    points = list(points)[:20]
+    out = {f"race.points.position{i}": p for i, p in enumerate(points, 1)}
+    out.update({f"race.points.position{i}": 0
+                for i in range(len(points) + 1, 21)})
+    return out
+
+
+# What the event-init scripts set per branch — these are the true "current"
+# values for the quali/race columns (game.json only reflects the boot state).
+SCRIPT_EVENT_DEFAULTS = {
+    "tripleheat": {
+        "quali": {"race.maxLaps": 1, "race.maxMinutes": 3,
+                  "fuel.fuelOn": 0, "tireWear.tireWearOn": 0,
+                  **_points_defaults([3, 2, 1])},
+        "race": {"race.maxMinutes": 1440, "fuel.fuelOn": 1,
+                 "tireWear.tireWearOn": 1,
+                 "tireWear.tireWearOversteeringEffect": 5,
+                 "drafting.draftingSpeedEffect": 5,
+                 "drafting.maxDraftingDistance": 45,
+                 "drafting.maxDraftingAngle": 20,
+                 "drafting.draftingDownforceReduction": 12,
+                 "drafting.draftingForMaximumEffect": 90,
+                 "drafting.draftingAttenuationPower": 1.5,
+                 **_points_defaults([20, 16, 13, 10, 8, 6, 4, 3, 2, 1])},
+    },
+    "casual_heat": {
+        "quali": {"race.maxLaps": 2, "race.maxMinutes": 5,
+                  "fuel.fuelOn": 0, "tireWear.tireWearOn": 0,
+                  **_points_defaults([3, 2, 1])},
+        "race": {"race.maxLaps": 500, "race.maxMinutes": 8,
+                 "fuel.fuelOn": 1, "tireWear.tireWearOn": 1,
+                 **_points_defaults([20, 16, 13, 10, 8, 6, 4, 3, 2, 1])},
+    },
+}
+
+
+def _column_defaults(server: str, base: dict, branch: str) -> dict:
+    d = dict(base)
+    d.update(SCRIPT_EVENT_DEFAULTS.get(server, {}).get(branch, {}))
+    return d
+
+
+def _fmt_default(val):
+    if isinstance(val, float):
+        return f"{val:g}"
+    return str(val)
 
 
 def _event_param_specs(server: str) -> list:
-    """[(section, [(path, default), ...]), ...] from eventsettings.json."""
-    path = os.path.join(SERVER_HOME[server], "server", "config",
-                        "Scripts", "eventsettings.json")
-    try:
-        with open(path, encoding="utf-8-sig") as fh:
-            tree = json.load(fh)
-    except Exception:
+    """[(section, [(path, default, display), ...]), ...] — current values
+    from the server's game.json (fallback: Scripts/eventsettings.json)."""
+    tree = None
+    for candidate in (
+        os.path.join(SERVER_HOME[server], "server", "config", "game.json"),
+        os.path.join(SERVER_HOME[server], "server", "config",
+                     "Scripts", "eventsettings.json"),
+    ):
+        try:
+            with open(candidate, encoding="utf-8-sig") as fh:
+                tree = json.load(fh)
+            if "eventSettings" in tree:
+                tree = tree["eventSettings"]
+            break
+        except Exception:
+            continue
+    if not isinstance(tree, dict):
         return []
     sections = []
     for section, body in tree.items():
@@ -334,26 +405,28 @@ def _event_param_specs(server: str) -> list:
                 if isinstance(val, dict):
                     walk(val, p)
                 elif isinstance(val, (int, float, bool)):
-                    fields.append((p, int(val) if isinstance(val, bool) else val))
+                    d = int(val) if isinstance(val, bool) else val
+                    fields.append((p, d, _fmt_default(d)))
         walk(body, section)
         if fields:
             sections.append((section, fields))
     return sections
 
 
-def _valid_param_path(p: str) -> bool:
-    return bool(p) and all(c.isalnum() or c in "._" for c in p)
+def _approx_equal(a, b) -> bool:
+    try:
+        return abs(float(a) - float(b)) <= 1e-6 * max(1.0, abs(float(b)))
+    except (TypeError, ValueError):
+        return a == b
 
 
-def _parse_param_overrides(prefix: str, what: str) -> dict:
-    """Collect '<prefix>__<param.path>' form fields; empty = not overridden."""
+def _parse_param_overrides(prefix: str, defaults: dict, what: str) -> dict:
+    """Read '<prefix><param.path>' fields; keep only values that differ
+    from the server's current default."""
     out = {}
-    for field, raw in request.form.items():
-        if not field.startswith(prefix):
-            continue
-        path = field[len(prefix):]
-        raw = raw.strip()
-        if not raw or not _valid_param_path(path):
+    for path, default in defaults.items():
+        raw = request.form.get(prefix + path, "").strip()
+        if not raw:
             continue
         low = raw.lower()
         if low in ("true", "on"):
@@ -368,6 +441,8 @@ def _parse_param_overrides(prefix: str, what: str) -> dict:
                 raise ValueError(
                     f"{what} parameter {path}: '{raw}' is not a number "
                     "(use 1/0 for on/off)")
+        if _approx_equal(val, default):
+            continue
         out[path] = val
     return out
 
@@ -638,32 +713,22 @@ def _heat_panel(server: str):
             _check_content_names("track", [t for t, _w in cfg["tracks"]],
                                  server, extra_known=old_tracks)
             _check_content_names("vehicle", new_cars, server, extra_known=old_cars)
-            cfg["quali"] = {
-                "laps": _form_int("quali_laps", "Quali laps", 1, 100),
-                "max_minutes": _form_num("quali_max_minutes", "Quali max minutes", 1, 1000),
-                "start_style": _form_str("quali_start_style", "Countdown"),
-                "contact_rules": _form_str("quali_contact_rules", "EqualGhosts"),
-                "points": _parse_points(
-                    request.form.get("quali_points", "") or "3, 2, 1", "Quali points"),
-            }
-            race = {
-                "start_style": _form_str("race_start_style", "Random"),
-                "contact_rules": _form_str("race_contact_rules", "Normal"),
-                "points": _parse_points(
-                    request.form.get("race_points", "") or "20, 16, 13, 10, 8, 6, 4, 3, 2, 1",
-                    "Race points"),
-            }
+            # top section = only the values that get randomized per race;
+            # everything else lives in the advanced params (diff-based)
+            race = {}
             if server == "tripleheat":
                 race["laps_min"], race["laps_max"] = _form_range("laps", "Race laps", 1, 1000)
             else:
-                race["max_laps"] = _form_int("max_laps", "Race max laps", 1, 10000)
                 race["max_compounds"] = _form_int("max_compounds", "Max tire compounds", 1, 2)
-            race["max_minutes"] = _form_num("race_max_minutes", "Race max minutes", 1, 100000)
             race["fuel_min"], race["fuel_max"] = _form_range("fuel", "Fuel (full-gas time)", 1, 100000)
             race["tires_min"], race["tires_max"] = _form_range("tires", "Tire endurance", 1, 100000)
+            base = {p: d for _sec, fields in _event_param_specs(server)
+                    for p, d, _disp in fields}
+            cfg["quali"] = {"params": _parse_param_overrides(
+                "qp__", _column_defaults(server, base, "quali"), "Quali")}
+            race["params"] = _parse_param_overrides(
+                "rp__", _column_defaults(server, base, "race"), "Race")
             cfg["race"] = race
-            cfg["quali"]["params"] = _parse_param_overrides("qp__", "Quali")
-            cfg["race"]["params"] = _parse_param_overrides("rp__", "Race")
             _save_config(server, cfg)
             flash(f"{meta['label']} config saved — used at the next session start.",
                   "success")
@@ -674,6 +739,12 @@ def _heat_panel(server: str):
         return redirect(url_for(endpoint))
 
     cfg = _load_config(server)
+    specs = _event_param_specs(server)
+    base = {p: d for _sec, fields in specs for p, d, _disp in fields}
+    qdisp = {p: _fmt_default(v)
+             for p, v in _column_defaults(server, base, "quali").items()}
+    rdisp = {p: _fmt_default(v)
+             for p, v in _column_defaults(server, base, "race").items()}
     return render_template(
         "admin/heat_config.html",
         server=server,
@@ -686,7 +757,10 @@ def _heat_panel(server: str):
         is_owner=owner,
         track_options=_known_tracks(),
         vehicle_options=_known_vehicles(),
-        param_specs=_event_param_specs(server),
+        param_specs=specs,
+        qdisp=qdisp,
+        rdisp=rdisp,
+        randomized_paths=RANDOMIZED_PATHS.get(server, set()),
         quali_params=cfg.get("quali", {}).get("params", {}),
         race_params=cfg.get("race", {}).get("params", {}),
         **_upload_context(server),

@@ -67,42 +67,7 @@
       </div>
 
       <div class="card bg-dark border-secondary mb-4">
-        <div class="card-header">Qualifying</div>
-        <div class="card-body">
-          {% set quali = cfg.get('quali', {}) %}
-          <div class="row g-3">
-            <div class="col-6 col-md-3">
-              <label class="form-label" for="quali_laps">Laps</label>
-              <input class="form-control" type="number" id="quali_laps" name="quali_laps"
-                     min="1" max="100" value="{{ quali.get('laps', 1) }}" required />
-            </div>
-            <div class="col-6 col-md-3">
-              <label class="form-label" for="quali_max_minutes">Max minutes</label>
-              <input class="form-control" type="number" step="any" id="quali_max_minutes"
-                     name="quali_max_minutes" min="1" max="1000"
-                     value="{{ quali.get('max_minutes', 3) }}" required />
-            </div>
-            <div class="col-6 col-md-3">
-              <label class="form-label" for="quali_start_style">Start style</label>
-              <input class="form-control" id="quali_start_style" name="quali_start_style"
-                     list="start-styles" value="{{ quali.get('start_style', 'Countdown') }}" />
-            </div>
-            <div class="col-6 col-md-3">
-              <label class="form-label" for="quali_contact_rules">Contact rules</label>
-              <input class="form-control" id="quali_contact_rules" name="quali_contact_rules"
-                     list="contact-rules" value="{{ quali.get('contact_rules', 'EqualGhosts') }}" />
-            </div>
-            <div class="col-12">
-              <label class="form-label" for="quali_points">Points (P1 first, comma-separated)</label>
-              <input class="form-control font-monospace" id="quali_points" name="quali_points"
-                     value="{{ quali.get('points', [3, 2, 1]) | join(', ') }}" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card bg-dark border-secondary mb-4">
-        <div class="card-header">Race</div>
+        <div class="card-header">Randomized race values</div>
         <div class="card-body">
           {% set race = cfg.get('race', {}) %}
           <div class="row g-3">
@@ -117,43 +82,23 @@
               <input class="form-control" type="number" id="laps_max" name="laps_max"
                      min="1" max="1000" value="{{ race.get('laps_max', 10) }}" required />
             </div>
-            <div class="col-6 col-md-3">
-              <label class="form-label" for="race_max_minutes">Max minutes</label>
-              <input class="form-control" type="number" step="any" id="race_max_minutes"
-                     name="race_max_minutes" min="1" max="100000"
-                     value="{{ race.get('max_minutes', 1440) }}" required />
-            </div>
             {% else %}
-            <div class="col-6 col-md-3">
-              <label class="form-label" for="max_laps">Max laps</label>
-              <input class="form-control" type="number" id="max_laps" name="max_laps"
-                     min="1" max="10000" value="{{ race.get('max_laps', 500) }}" required />
-            </div>
-            <div class="col-6 col-md-3">
-              <label class="form-label" for="race_max_minutes">Max minutes</label>
-              <input class="form-control" type="number" step="any" id="race_max_minutes"
-                     name="race_max_minutes" min="1" max="100000"
-                     value="{{ race.get('max_minutes', 8) }}" required />
-            </div>
             <div class="col-6 col-md-3">
               <label class="form-label" for="max_compounds">Max compounds</label>
               <input class="form-control" type="number" id="max_compounds" name="max_compounds"
                      min="1" max="2" value="{{ race.get('max_compounds', 2) }}" required />
-              <div class="form-text">1–2, compound count is randomized up to this.</div>
+              <div class="form-text">1–2, compound count is rolled up to this.</div>
             </div>
             {% endif %}
-          </div>
-          <hr class="border-secondary" />
-          <div class="row g-3">
             <div class="col-6 col-md-3">
               <label class="form-label" for="fuel_min">Fuel min</label>
               <input class="form-control" type="number" id="fuel_min" name="fuel_min"
-                     min="1" max="100000" value="{{ race.get('fuel_min', 230) }}" required />
+                     min="1" max="100000" value="{{ race.get('fuel_min', 230 if server == 'tripleheat' else 180) }}" required />
             </div>
             <div class="col-6 col-md-3">
               <label class="form-label" for="fuel_max">Fuel max</label>
               <input class="form-control" type="number" id="fuel_max" name="fuel_max"
-                     min="1" max="100000" value="{{ race.get('fuel_max', 675) }}" required />
+                     min="1" max="100000" value="{{ race.get('fuel_max', 675 if server == 'tripleheat' else 450) }}" required />
             </div>
             <div class="col-6 col-md-3">
               <label class="form-label" for="tires_min">Tires min</label>
@@ -163,31 +108,15 @@
             <div class="col-6 col-md-3">
               <label class="form-label" for="tires_max">Tires max</label>
               <input class="form-control" type="number" id="tires_max" name="tires_max"
-                     min="1" max="100000" value="{{ race.get('tires_max', 1700) }}" required />
+                     min="1" max="100000" value="{{ race.get('tires_max', 1700 if server == 'tripleheat' else 1300) }}" required />
             </div>
           </div>
           <div class="form-text mt-2">
+            A random value inside each range is rolled per race.
             Fuel = full-gas seconds per tank (higher = longer stints).
             Tires = compound endurance (higher = less degradation).
-            A random value inside each range is rolled per race.
-          </div>
-          <hr class="border-secondary" />
-          <div class="row g-3">
-            <div class="col-6 col-md-3">
-              <label class="form-label" for="race_start_style">Start style</label>
-              <input class="form-control" id="race_start_style" name="race_start_style"
-                     list="start-styles" value="{{ race.get('start_style', 'Random') }}" />
-            </div>
-            <div class="col-6 col-md-3">
-              <label class="form-label" for="race_contact_rules">Contact rules</label>
-              <input class="form-control" id="race_contact_rules" name="race_contact_rules"
-                     list="contact-rules" value="{{ race.get('contact_rules', 'Normal') }}" />
-            </div>
-            <div class="col-12">
-              <label class="form-label" for="race_points">Points (P1 first, comma-separated)</label>
-              <input class="form-control font-monospace" id="race_points" name="race_points"
-                     value="{{ race.get('points', [20, 16, 13, 10, 8, 6, 4, 3, 2, 1]) | join(', ') }}" />
-            </div>
+            Everything else (quali laps, contact rules, points, …) is in
+            <strong>Advanced event parameters</strong> below.
           </div>
         </div>
       </div>
@@ -211,10 +140,12 @@
     <div class="card-header">Advanced event parameters</div>
     <div class="card-body">
       <p class="text-secondary">
-        Every in-game event setting, overridable separately for quali and
-        race. Empty = game/server default stays. Values: numbers, or
-        <code>1/0</code> for on/off. Applied at every event init — an in-game
-        admin change lasts only until the next event.
+        Every in-game event setting, pre-filled with the server's
+        <strong>current values</strong> and overridable separately for quali
+        and race. Only values you change are stored and sent (at every event
+        init). Values: numbers, or <code>1/0</code> for on/off.
+        <span class="text-warning">⚄</span> = randomized per race via the
+        ranges above — setting it here disables the randomization.
       </p>
       <div class="accordion" id="param-accordion">
         {% for section, fields in param_specs %}
@@ -233,18 +164,22 @@
             <div class="accordion-body p-0">
               <table class="table table-dark table-sm align-middle mb-0">
                 <thead><tr>
-                  <th>Parameter</th><th style="width:110px">Default</th>
-                  <th style="width:130px">Quali</th><th style="width:130px">Race</th>
+                  <th>Parameter</th>
+                  <th style="width:150px">Quali</th><th style="width:150px">Race</th>
                 </tr></thead>
                 <tbody>
-                  {% for path, default in fields %}
+                  {% for path, default, disp in fields %}
                   <tr>
-                    <td class="font-monospace small" data-nosort>{{ path }}</td>
-                    <td class="text-secondary small">{{ default }}</td>
-                    <td><input class="form-control form-control-sm font-monospace"
-                               name="qp__{{ path }}" value="{{ quali_params.get(path, '') }}" /></td>
-                    <td><input class="form-control form-control-sm font-monospace"
-                               name="rp__{{ path }}" value="{{ race_params.get(path, '') }}" /></td>
+                    <td class="font-monospace small" data-nosort>
+                      {{ path }}
+                      {% if path in randomized_paths %}<span class="text-warning" title="randomized per race via the ranges above">⚄</span>{% endif %}
+                    </td>
+                    <td><input class="form-control form-control-sm font-monospace {{ 'border-warning' if path in quali_params }}"
+                               name="qp__{{ path }}"
+                               value="{{ quali_params.get(path, qdisp.get(path, disp)) }}" /></td>
+                    <td><input class="form-control form-control-sm font-monospace {{ 'border-warning' if path in race_params }}"
+                               name="rp__{{ path }}"
+                               value="{{ race_params.get(path, rdisp.get(path, disp)) }}" /></td>
                   </tr>
                   {% endfor %}
                 </tbody>
