@@ -184,6 +184,7 @@
 </form>
 
 {% include "admin/_uploads.html" %}
+{% include "admin/_server_control.html" %}
 
 <datalist id="known-tracks">
   {% for t in track_options %}<option value="{{ t }}"></option>{% endfor %}

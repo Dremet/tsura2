@@ -1,0 +1,21 @@
+{# Server restart/update card. Needs: control_server, server_up, csrf_token #}
+<div class="card bg-dark border-secondary mt-4" style="max-width: 640px;">
+  <div class="card-header">Server control</div>
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <span class="badge {{ 'text-bg-success' if server_up else 'text-bg-danger' }}">
+      {{ 'Running' if server_up else 'Offline' }}
+    </span>
+    <form method="post"
+          action="{{ url_for('admin.server_action', server=control_server, action='restart') }}"
+          onsubmit="return confirm('Restart this game server now? Everyone on it is disconnected; it is back in about 2 minutes.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button class="btn btn-outline-warning btn-sm" type="submit">Restart server</button>
+    </form>
+    <form method="post"
+          action="{{ url_for('admin.server_action', server=control_server, action='update') }}"
+          onsubmit="return confirm('Update the game server via Steam and restart it? This can take several minutes.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button class="btn btn-outline-danger btn-sm" type="submit">Update &amp; restart</button>
+    </form>
+  </div>
+</div>

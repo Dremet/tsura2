@@ -14,6 +14,7 @@ import hmac
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import time
 from datetime import datetime
@@ -63,13 +64,25 @@ SERVERS = {
     },
 }
 
-# Where each game server lives on disk (uploads go to server/config/<subdir>).
-SERVER_HOME = {
-    "tripleheat": "/home/tripleheat",
-    "casual_heat": "/home/heat",
-    "hotlapping": "/home/hotlapping",
-    "events": "/home/events",
+# Unix account behind each game server.
+SERVER_UNIX_USER = {
+    "tripleheat": "tripleheat",
+    "casual_heat": "heat",
+    "hotlapping": "hotlapping",
+    "events": "events",
+    "career": "career",
 }
+
+# Where each game server lives on disk (uploads go to server/config/<subdir>).
+SERVER_HOME = {s: f"/home/{u}" for s, u in SERVER_UNIX_USER.items()}
+
+# Servers that take file uploads via the panel (career cars are generated).
+UPLOAD_SERVERS = ("tripleheat", "casual_heat", "hotlapping", "events")
+
+# Server-control actions -> script in the game user's home (run via a
+# narrow sudoers rule in /etc/sudoers.d/tsura-server-admin).
+ACTIONS = {"restart": "restart_server.sh", "update": "update_and_restart.sh"}
+ACTION_LOG_DIR = "/srv/tsura/server_config/logs"
 
 PANEL_ENDPOINT = {
     "tripleheat": "admin.tripleheat",
@@ -327,6 +340,56 @@ def _upload_context(server: str) -> dict:
     }
 
 
+# --------------------------------------------------------- server control
+def _server_running(server: str) -> bool:
+    try:
+        return (
+            subprocess.run(
+                ["pgrep", "-u", SERVER_UNIX_USER[server], "-x", "TSUs.x86_64"],
+                stdout=subprocess.DEVNULL,
+            ).returncode
+            == 0
+        )
+    except Exception:
+        return False
+
+
+def _control_context(server: str) -> dict:
+    return {"control_server": server, "server_up": _server_running(server)}
+
+
+def _apply_ingame_admins_now(server: str, admins) -> str:
+    """Push a changed in-game admin list to the RUNNING server.
+
+    Writes an autorun.src containing only /admins commands — this does NOT
+    touch the running event or session, races continue undisturbed.
+    Returns a human-readable note about what happened.
+    """
+    fallback = "they take effect at the next session start"
+    try:
+        scripts_dir = os.path.join(SERVER_HOME[server], "server", "config", "Scripts")
+        autorun = os.path.join(scripts_dir, "autorun.src")
+        if not _server_running(server):
+            return f"server is offline — {fallback}"
+        if os.path.exists(autorun):
+            return f"server is busy with another script — {fallback}"
+        commands = ["/admins /clear"]
+        commands += [f"/admins /add {sid}" for sid, _label in admins]
+        fd, tmp = tempfile.mkstemp(dir=scripts_dir, prefix=".admins.")
+        try:
+            with os.fdopen(fd, "w") as fh:
+                fh.write("\n".join(commands) + "\n")
+            os.chmod(tmp, 0o664)
+            os.replace(tmp, autorun)
+        except Exception:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+            raise
+        return "applied to the running server (current session is not interrupted)"
+    except OSError as exc:
+        return f"could not reach the server ({exc}) — {fallback}"
+
+
 # ---------------------------------------------------------------- routes
 @admin_bp.route("/")
 def index():
@@ -395,10 +458,17 @@ def _heat_panel(server: str):
             race["fuel_min"], race["fuel_max"] = _form_range("fuel", "Fuel (full-gas time)", 1, 100000)
             race["tires_min"], race["tires_max"] = _form_range("tires", "Tire endurance", 1, 100000)
             cfg["race"] = race
+            admins_note = None
             if owner and request.form.get("ingame_admins") is not None:
+                old_admins = cfg.get("ingame_admins")
                 cfg["ingame_admins"] = _parse_admins(request.form["ingame_admins"])
+                if cfg["ingame_admins"] != old_admins:
+                    admins_note = _apply_ingame_admins_now(server, cfg["ingame_admins"])
             _save_config(server, cfg)
-            flash(f"{meta['label']} config saved — used at the next session start.", "success")
+            msg = f"{meta['label']} config saved — used at the next session start."
+            if admins_note:
+                msg += f" In-game admins: {admins_note}."
+            flash(msg, "success")
         except ValueError as exc:
             flash(str(exc), "danger")
         except OSError as exc:
@@ -420,6 +490,7 @@ def _heat_panel(server: str):
         track_options=_known_tracks(),
         vehicle_options=_known_vehicles(),
         **_upload_context(server),
+        **_control_context(server),
     )
 
 
@@ -478,6 +549,7 @@ def hotlapping():
         track_options=_known_tracks(),
         vehicle_options=_known_vehicles(),
         **_upload_context("hotlapping"),
+        **_control_context("hotlapping"),
     )
 
 
@@ -494,12 +566,57 @@ def events():
         meta=SERVERS["events"],
         camera_mtime=camera_mtime,
         **_upload_context("events"),
+        **_control_context("events"),
     )
+
+
+@admin_bp.route("/<server>/action/<action>", methods=["POST"])
+def server_action(server, action):
+    if server not in SERVER_UNIX_USER or action not in ACTIONS:
+        abort(404)
+    if not is_server_admin(g.get("current_steam_id"), server):
+        abort(403)
+    if not _csrf_ok():
+        abort(400)
+    user = SERVER_UNIX_USER[server]
+    script = os.path.join(SERVER_HOME[server], ACTIONS[action])
+    back = redirect(url_for(PANEL_ENDPOINT.get(server, "admin.index"))
+                    if server != "career" else url_for("career.admin"))
+    try:
+        log_path = os.path.join(ACTION_LOG_DIR, f"{server}.log")
+        with open(log_path, "a") as lf:
+            lf.write(f"\n=== {datetime.now():%Y-%m-%d %H:%M:%S} {action} "
+                     f"triggered by {g.current_steam_id}\n")
+            lf.flush()
+            proc = subprocess.Popen(
+                ["sudo", "-n", "-u", user, script],
+                stdout=lf, stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+        # sudo fails immediately (exit 1) if the sudoers rule is missing
+        try:
+            rc = proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            rc = None
+        if rc not in (None, 0):
+            flash("Could not start the action — server permissions for the "
+                  "website are not set up (sudoers).", "danger")
+            return back
+    except OSError as exc:
+        flash(f"Could not start the action: {exc}", "danger")
+        return back
+    if action == "restart":
+        flash(f"{SERVERS[server]['label']} server restart started — the "
+              "server is back in about 2 minutes.", "success")
+    else:
+        flash(f"{SERVERS[server]['label']} update & restart started — this "
+              "can take several minutes.", "success")
+    return back
 
 
 @admin_bp.route("/<server>/upload/<kind>", methods=["POST"])
 def upload(server, kind):
-    if server not in SERVER_HOME or kind not in UPLOAD_KINDS:
+    if server not in UPLOAD_SERVERS or kind not in UPLOAD_KINDS:
         abort(404)
     if not is_server_admin(g.get("current_steam_id"), server):
         abort(403)
