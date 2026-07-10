@@ -38,6 +38,41 @@
   {% endif %}
 </div>
 
+<h2 class="mt-5 mb-3">Who is admin where</h2>
+<div class="card bg-dark border-secondary" style="max-width: 900px;">
+  <div class="card-body">
+    <table class="table table-dark align-middle mb-0">
+      <thead>
+        <tr><th>Server</th><th>Admins</th></tr>
+      </thead>
+      <tbody>
+        {% for key, m in meta.items() %}
+        <tr>
+          <td class="fw-bold" style="color: {{ m.color }};">{{ m.label }}</td>
+          <td>
+            {% for a in overview.get(key, []) %}
+              {% if a.driver_name %}
+              <a href="{{ url_for('main.driver_profile', driver_id=a.steam_id) }}"
+                 class="badge text-bg-secondary text-decoration-none me-1">{{ a.driver_name }}</a>
+              {% else %}
+              <span class="badge text-bg-dark border me-1"
+                    title="No tsura.org profile yet">{{ a.steam_id }}</span>
+              {% endif %}
+            {% else %}
+            <span class="text-secondary">—</span>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="form-text mt-2">
+      The site owner always has admin access everywhere and is the only one
+      who can change these lists.
+    </div>
+  </div>
+</div>
+
 <style>
   .admin-card { transition: transform .1s ease-in-out, box-shadow .1s ease-in-out; }
   .admin-card:hover { transform: translateY(-3px); box-shadow: 0 .5rem 1rem rgba(0,0,0,.5); }

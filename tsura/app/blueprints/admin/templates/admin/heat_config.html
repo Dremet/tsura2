@@ -183,6 +183,8 @@
   </div>
 </form>
 
+{% include "admin/_uploads.html" %}
+
 <datalist id="known-tracks">
   {% for t in track_options %}<option value="{{ t }}"></option>{% endfor %}
 </datalist>

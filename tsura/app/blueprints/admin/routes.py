@@ -13,7 +13,10 @@ from __future__ import annotations
 import hmac
 import json
 import os
+import shutil
 import tempfile
+import time
+from datetime import datetime
 from functools import wraps
 
 import psycopg
@@ -52,7 +55,36 @@ SERVERS = {
         "description": "Track, car and start-behind distance — applied to "
                        "the live server within a minute.",
     },
+    "events": {
+        "label": "Event Server",
+        "color": "#6f42c1",
+        "description": "Upload cars, tracks and camera settings for the "
+                       "manually hosted #1 Event Server.",
+    },
 }
+
+# Where each game server lives on disk (uploads go to server/config/<subdir>).
+SERVER_HOME = {
+    "tripleheat": "/home/tripleheat",
+    "casual_heat": "/home/heat",
+    "hotlapping": "/home/hotlapping",
+    "events": "/home/events",
+}
+
+PANEL_ENDPOINT = {
+    "tripleheat": "admin.tripleheat",
+    "casual_heat": "admin.casual_heat",
+    "hotlapping": "admin.hotlapping",
+    "events": "admin.events",
+}
+
+UPLOAD_KINDS = {
+    "vehicle": {"subdir": "Vehicles", "ext": ".veh", "magic": b"PK", "label": "car"},
+    "track": {"subdir": "Levels", "ext": ".lvl", "magic": None, "label": "track"},
+}
+
+CAMERA_PATH = "/home/events/server/config/camera.json"
+BACKUP_DIR = "/srv/tsura/server_config/backups"
 
 
 # ----------------------------------------------------------------- helpers
@@ -257,6 +289,44 @@ def _fmt_admins(items) -> str:
     return "\n".join(f"{sid} | {label}" for sid, label in items)
 
 
+# ---------------------------------------------------------------- uploads
+def _safe_filename(raw: str) -> str:
+    """Basename only; game files legitimately contain spaces/umlauts/'."""
+    name = raw.replace("\\", "/").split("/")[-1].strip()
+    if not name or name.startswith(".") or any(ord(c) < 32 for c in name):
+        raise ValueError(f"Invalid file name: {raw!r}")
+    return name
+
+
+def _upload_dir(server: str, kind: str) -> str:
+    return os.path.join(
+        SERVER_HOME[server], "server", "config", UPLOAD_KINDS[kind]["subdir"])
+
+
+def _recent_files(server: str, kind: str, n: int = 8) -> list:
+    try:
+        entries = [
+            (e.name, e.stat().st_mtime)
+            for e in os.scandir(_upload_dir(server, kind))
+            if e.is_file() and not e.name.startswith(".")
+        ]
+    except OSError:
+        return []
+    entries.sort(key=lambda t: t[1], reverse=True)
+    return [
+        {"name": name,
+         "mtime": datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")}
+        for name, mtime in entries[:n]
+    ]
+
+
+def _upload_context(server: str) -> dict:
+    return {
+        "upload_server": server,
+        "recent_uploads": {k: _recent_files(server, k) for k in UPLOAD_KINDS},
+    }
+
+
 # ---------------------------------------------------------------- routes
 @admin_bp.route("/")
 def index():
@@ -268,12 +338,28 @@ def index():
         "tripleheat": url_for("admin.tripleheat"),
         "casual_heat": url_for("admin.casual_heat"),
         "hotlapping": url_for("admin.hotlapping"),
+        "events": url_for("admin.events"),
     }
+    # who is admin where (shown to every admin; owner is implicit everywhere)
+    overview = {s: [] for s in SERVERS}
+    try:
+        with _cur() as cur:
+            cur.execute(
+                "SELECT a.server, a.steam_id, p.driver_name"
+                "  FROM webadmin.server_admins a"
+                "  LEFT JOIN mart.v_driver_profile p USING (steam_id)"
+                " ORDER BY a.server, p.driver_name NULLS LAST, a.steam_id"
+            )
+            for r in cur.fetchall():
+                overview.setdefault(r["server"], []).append(r)
+    except Exception:
+        pass
     return render_template(
         "admin/index.html",
         servers=servers,
         meta=SERVERS,
         links=links,
+        overview=overview,
         is_owner=is_owner(g.get("current_steam_id")),
     )
 
@@ -333,6 +419,7 @@ def _heat_panel(server: str):
         is_owner=owner,
         track_options=_known_tracks(),
         vehicle_options=_known_vehicles(),
+        **_upload_context(server),
     )
 
 
@@ -390,7 +477,106 @@ def hotlapping():
         pending=(applied != cfg),
         track_options=_known_tracks(),
         vehicle_options=_known_vehicles(),
+        **_upload_context("hotlapping"),
     )
+
+
+@admin_bp.route("/events")
+@_server_admin_required("events")
+def events():
+    try:
+        camera_mtime = datetime.fromtimestamp(
+            os.stat(CAMERA_PATH).st_mtime).strftime("%Y-%m-%d %H:%M")
+    except OSError:
+        camera_mtime = None
+    return render_template(
+        "admin/events.html",
+        meta=SERVERS["events"],
+        camera_mtime=camera_mtime,
+        **_upload_context("events"),
+    )
+
+
+@admin_bp.route("/<server>/upload/<kind>", methods=["POST"])
+def upload(server, kind):
+    if server not in SERVER_HOME or kind not in UPLOAD_KINDS:
+        abort(404)
+    if not is_server_admin(g.get("current_steam_id"), server):
+        abort(403)
+    if not _csrf_ok():
+        abort(400)
+    spec = UPLOAD_KINDS[kind]
+    target_dir = _upload_dir(server, kind)
+    files = [f for f in request.files.getlist("files") if f and f.filename]
+    if not files:
+        flash("No file selected.", "warning")
+        return redirect(url_for(PANEL_ENDPOINT[server]))
+
+    saved, errors = [], []
+    for f in files:
+        try:
+            name = _safe_filename(f.filename)
+            if not name.lower().endswith(spec["ext"]):
+                raise ValueError(f"{name}: must be a {spec['ext']} file")
+            if spec["magic"]:
+                head = f.stream.read(len(spec["magic"]))
+                f.stream.seek(0)
+                if head != spec["magic"]:
+                    raise ValueError(f"{name}: not a valid {spec['label']} file")
+            fd, tmp = tempfile.mkstemp(dir=target_dir, prefix=".upload.")
+            try:
+                with os.fdopen(fd, "wb") as out:
+                    shutil.copyfileobj(f.stream, out)
+                os.chmod(tmp, 0o664)
+                os.replace(tmp, os.path.join(target_dir, name))
+            except Exception:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+                raise
+            saved.append(name)
+        except (ValueError, OSError) as exc:
+            errors.append(str(exc))
+
+    if saved:
+        flash(
+            f"Uploaded {len(saved)} {spec['label']} file(s): {', '.join(saved)} — "
+            "loaded at the next server restart (daily ~5:00) or after an "
+            "in-game /refreshfiles.",
+            "success",
+        )
+    for e in errors:
+        flash(e, "danger")
+    return redirect(url_for(PANEL_ENDPOINT[server]))
+
+
+@admin_bp.route("/events/upload/camera", methods=["POST"])
+@_server_admin_required("events")
+def upload_camera():
+    if not _csrf_ok():
+        abort(400)
+    f = request.files.get("file")
+    if not f or not f.filename:
+        flash("No file selected.", "warning")
+        return redirect(url_for("admin.events"))
+    data = f.read()
+    try:
+        json.loads(data.decode("utf-8-sig"))
+    except Exception:
+        flash(f"{f.filename}: not a valid JSON file.", "danger")
+        return redirect(url_for("admin.events"))
+    try:
+        backup = os.path.join(
+            BACKUP_DIR, f"camera.json.{time.strftime('%Y%m%d-%H%M%S')}")
+        shutil.copyfile(CAMERA_PATH, backup)
+        # in-place rewrite: tsura has write access to the file, not the dir
+        with open(CAMERA_PATH, "wb") as out:
+            out.write(data)
+    except OSError as exc:
+        flash(f"Could not replace camera.json: {exc}", "danger")
+        return redirect(url_for("admin.events"))
+    flash("camera.json replaced (backup kept) — active after the next "
+          "server restart.", "success")
+    return redirect(url_for("admin.events"))
 
 
 # ---------------------------------------------------------- admin rights

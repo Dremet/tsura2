@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Event Server Admin — TSURA{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">Admin</a></li>
+    <li class="breadcrumb-item active">Event Server</li>
+  </ol>
+</nav>
+
+<h1 class="mb-2" style="color: {{ meta.color }};">Event Server</h1>
+<p class="text-secondary mb-4">
+  The #1 Event Server is hosted manually in-game — this panel is for getting
+  files onto it: cars, tracks and the camera settings.
+</p>
+
+{% include "admin/_uploads.html" %}
+
+<div class="card bg-dark border-secondary mt-4" style="max-width: 640px;">
+  <div class="card-header">Camera settings (camera.json)</div>
+  <div class="card-body">
+    <p class="text-secondary">
+      Replaces <code>server/config/camera.json</code>
+      {% if camera_mtime %}(current file from {{ camera_mtime }}){% endif %}.
+      A backup of the previous file is kept. The server reads it at startup,
+      so it becomes active after the next restart (daily ~5:00).
+    </p>
+    <form method="post" enctype="multipart/form-data"
+          action="{{ url_for('admin.upload_camera') }}" class="d-flex gap-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <input class="form-control form-control-sm" type="file" name="file"
+             accept=".json,application/json" required />
+      <button class="btn btn-warm-red btn-sm" type="submit">Replace</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

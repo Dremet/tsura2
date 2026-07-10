@@ -1,0 +1,52 @@
+{# Upload card for cars (.veh) and tracks (.lvl). Needs: upload_server, recent_uploads, csrf_token #}
+<div class="card bg-dark border-secondary mt-4">
+  <div class="card-header">File uploads</div>
+  <div class="card-body">
+    <p class="text-secondary">
+      Uploaded files land in the server's <code>Vehicles</code> /
+      <code>Levels</code> folder. The game loads them at the next server
+      restart (daily ~5:00) or after an in-game <code>/refreshfiles</code>.
+      Existing files with the same name are overwritten.
+    </p>
+    <div class="row g-4">
+      <div class="col-12 col-md-6">
+        <h6>Cars (.veh)</h6>
+        <form method="post" enctype="multipart/form-data"
+              action="{{ url_for('admin.upload', server=upload_server, kind='vehicle') }}"
+              class="d-flex gap-2 mb-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input class="form-control form-control-sm" type="file" name="files"
+                 accept=".veh" multiple required />
+          <button class="btn btn-warm-red btn-sm" type="submit">Upload</button>
+        </form>
+        {% if recent_uploads.vehicle %}
+        <div class="small text-secondary">Newest files:</div>
+        <ul class="small text-secondary mb-0">
+          {% for f in recent_uploads.vehicle %}
+          <li><span class="text-light">{{ f.name }}</span> — {{ f.mtime }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      <div class="col-12 col-md-6">
+        <h6>Tracks (.lvl)</h6>
+        <form method="post" enctype="multipart/form-data"
+              action="{{ url_for('admin.upload', server=upload_server, kind='track') }}"
+              class="d-flex gap-2 mb-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <input class="form-control form-control-sm" type="file" name="files"
+                 accept=".lvl" multiple required />
+          <button class="btn btn-warm-red btn-sm" type="submit">Upload</button>
+        </form>
+        {% if recent_uploads.track %}
+        <div class="small text-secondary">Newest files:</div>
+        <ul class="small text-secondary mb-0">
+          {% for f in recent_uploads.track %}
+          <li><span class="text-light">{{ f.name }}</span> — {{ f.mtime }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

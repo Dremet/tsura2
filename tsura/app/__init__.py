@@ -33,6 +33,8 @@ def create_app() -> Flask:
     if not secret_key:
         raise RuntimeError("TSURA_SECRET_KEY is not set")
     app.config["SECRET_KEY"] = secret_key
+    # admin file uploads (.lvl/.veh); nginx client_max_body_size matches
+    app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024
 
     app.config["TSURA_BASE_URL"] = (
         os.environ.get("TSURA_BASE_URL", "http://localhost:5000").rstrip("/")
