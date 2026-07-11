@@ -949,6 +949,36 @@ def events_push():
     return redirect(url_for("admin.events"))
 
 
+@admin_bp.route("/<server>/apply", methods=["POST"])
+def apply_session(server):
+    """'Apply now': request a fresh session with the saved config.
+
+    A per-server cron (apply_web_session.py, runs as the game user)
+    consumes the request within a minute: it restarts the server first if
+    content files are newer than the running process, then triggers the
+    normal session-start flow (incl. /refreshfiles at session init).
+    """
+    if server not in ("tripleheat", "casual_heat"):
+        abort(404)
+    if not is_server_admin(g.get("current_steam_id"), server):
+        abort(403)
+    if not _csrf_ok():
+        abort(400)
+    req = os.path.join(CONFIG_DIR, f"{server}.apply_session")
+    try:
+        with open(req, "w", encoding="utf-8") as fh:
+            fh.write(f"{datetime.now():%Y-%m-%d %H:%M:%S} by {g.current_steam_id}\n")
+        os.chmod(req, 0o664)
+    except OSError as exc:
+        flash(f"Could not request apply: {exc}", "danger")
+        return redirect(url_for(PANEL_ENDPOINT[server]))
+    flash("Apply requested — the server picks it up within a minute, restarts "
+          "only if freshly uploaded files need scanning, and then starts a "
+          "fresh session with the saved config (ready in ~1–3 minutes).",
+          "success")
+    return redirect(url_for(PANEL_ENDPOINT[server]))
+
+
 @admin_bp.route("/<server>/action/<action>", methods=["POST"])
 def server_action(server, action):
     if server not in SERVER_UNIX_USER or action not in ACTIONS:

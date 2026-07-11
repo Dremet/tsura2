@@ -206,6 +206,22 @@
   </div>
 </form>
 
+<div class="card bg-dark border-secondary mt-4" style="max-width: 640px;">
+  <div class="card-header">Apply now</div>
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <form method="post" action="{{ url_for('admin.apply_session', server=server) }}"
+          onsubmit="return confirm('Start a fresh session with the saved config now? Anyone currently racing on the server loses their session. If files were just uploaded, the server restarts first (~2 minutes), otherwise the new session starts within a minute.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button class="btn btn-warm-red btn-sm" type="submit">Apply saved config now</button>
+    </form>
+    <span class="text-secondary small">
+      Fresh session with the saved cars/tracks/settings — restarts the server
+      first only when freshly uploaded files need scanning. Otherwise the
+      config simply applies at the next session start (Fri/Wed 21:00).
+    </span>
+  </div>
+</div>
+
 {% include "admin/_uploads.html" %}
 {% include "admin/_server_control.html" %}
 
