@@ -1238,10 +1238,14 @@ def tracks():
         if not _csrf_ok():
             abort(400)
         name = (request.form.get("track_name") or "").strip()
-        code = (request.form.get("country_code") or "").strip().lower()
+        if request.form.get("set_global"):
+            code = "un"          # fictional/global track — counts as assigned
+        else:
+            code = (request.form.get("country_code") or "").strip().lower()
         if not name or not _COUNTRY_CODE_RE.fullmatch(code):
             flash("Invalid country code — use a lowercase flag-icons code "
-                  "like 'de', 'us' or 'xx' (unknown).", "danger")
+                  "like 'de' or 'us', the Global button for fictional "
+                  "tracks, or 'xx' (unknown).", "danger")
         else:
             with _cur() as cur:
                 cur.execute(

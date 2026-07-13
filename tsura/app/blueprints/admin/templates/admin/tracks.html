@@ -8,7 +8,9 @@
   Every track name on the site gets a flag. Assign the country with a
   lowercase <a href="https://flagicons.lipis.dev/" target="_blank" rel="noopener"
   class="link-secondary">flag-icons</a> code (e.g. <code>de</code>, <code>us</code>,
-  <code>gb</code>) — or <code>xx</code> for fictional/unknown tracks (globe placeholder).
+  <code>gb</code>) — or hit <strong>Global</strong>
+  (<span class="fi fi-un"></span>) for fictional tracks.
+  <span class="fi fi-xx"></span> = not assigned yet.
 </p>
 <p class="text-secondary mb-4">
   {% if unassigned %}<span class="badge bg-warning text-dark">{{ unassigned }}</span>
@@ -39,8 +41,10 @@
             <input type="text" name="country_code" value="{{ r.country_code or '' }}"
                    class="form-control form-control-sm bg-dark text-white border-secondary"
                    style="width:5.5rem" maxlength="6" placeholder="xx"
-                   pattern="[a-z]{2}(-[a-z]{2,3})?" required>
+                   pattern="[a-z]{2}(-[a-z]{2,3})?">
             <button class="btn btn-warm-red btn-sm">Save</button>
+            <button name="set_global" value="1" class="btn btn-outline-info btn-sm"
+                    title="Fictional track — show the global flag">Global</button>
           </form>
         </td>
       </tr>
