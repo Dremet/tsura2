@@ -109,7 +109,7 @@
                             <td>{% if r.flag_code %}<span class="fi fi-{{ r.flag_code }} me-1"></span>{% endif %}
                                 <a href="{{ url_for('main.driver_profile', driver_id=r.steam_id) }}"
                                    class="text-white">{{ r.driver_name }}</a></td>
-                            <td class="text-end fw-bold">{{ r.heat_elo }}</td>
+                            <td class="text-end fw-bold">{{ "%.1f"|format(r.heat_elo) }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
