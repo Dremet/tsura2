@@ -3,7 +3,7 @@
 {% block content %}
 {% include "career/_subnav.html" %}
 <a href="{{ url_for('career.results') }}" class="btn btn-outline-light btn-sm mb-3">← All results</a>
-<h1 class="mb-1">{{ header.track_name }}</h1>
+<h1 class="mb-1"><span class="fi fi-{{ track_flag(header.track_name) }} me-2"></span>{{ header.track_name }}</h1>
 <p class="text-secondary">{{ header.utc_start_time.strftime('%Y-%m-%d %H:%M UTC') }}
   · {{ header.participant_count }} drivers</p>
 <div class="table-responsive">
@@ -15,7 +15,8 @@
       <tr>
         <td class="fw-bold">{{ r.position }}</td>
         <td>{{ r.start_position or '—' }}{% if r.is_pole %} <span class="badge bg-warning text-dark">P</span>{% endif %}</td>
-        <td>{% if r.display_tag %}<span class="badge bg-secondary">{{ r.display_tag }}</span> {% endif %}
+        <td>{% if r.flag_code %}<span class="fi fi-{{ r.flag_code }} me-1"></span>{% endif %}
+          {% if r.display_tag %}<span class="badge bg-secondary">{{ r.display_tag }}</span> {% endif %}
           <a href="{{ url_for('main.driver_profile', driver_id=r.steam_id) }}" class="text-white">{{ r.driver_name }}</a>{% if r.is_fastest_lap %} <span class="badge bg-info text-dark">FL</span>{% endif %}</td>
         <td class="text-end">{{ r.laps_completed }}</td>
         <td class="text-end fw-bold">{{ r.points_total if r.points_total is not none else '—' }}</td>

@@ -9,7 +9,7 @@
 <!-- Race header -------------------------------------------------------- -->
 <div class="card mb-4">
     <div class="card-body">
-        <h4 class="card-title mb-1">{{ meta.track_name }}</h4>
+        <h4 class="card-title mb-1"><span class="fi fi-{{ track_flag(meta.track_name) }} me-1"></span>{{ meta.track_name }}</h4>
         <p class="mb-1 text-muted small">
             {{ meta.utc_start_time.strftime('%d.%m.%Y %H:%M') }}
             &nbsp;·&nbsp;
@@ -17,6 +17,8 @@
             <span class="badge bg-danger">Triple Heat</span>
             {% elif meta.server == 'casual_heat' %}
             <span class="badge bg-primary">Casual Heat</span>
+            {% elif meta.server == 'career' %}
+            <span class="badge bg-warning text-dark">Career</span>
             {% else %}
             <span class="badge bg-secondary">Event</span>
             {% endif %}

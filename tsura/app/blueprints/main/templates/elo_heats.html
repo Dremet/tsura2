@@ -2,26 +2,19 @@
 {% block title %}TSURA | ELO Heats{% endblock %}
 {% block content %}
 
-<div class="mb-3 small">
-    <p>
-        <strong>What is Elo?</strong> &nbsp;Originally designed for chess, Elo converts results
-        into rating changes so a single number approximates skill.
-    </p>
-    <p>
-        <strong>Multi-player adaptation.</strong> &nbsp;For each race, every driver has an
-        <em>expected finishing position</em> computed from all current ratings; the gap between
-        expectation and reality becomes an Elo gain or loss.
-    </p>
-    <p>
-        <strong>Update cycle.</strong> &nbsp;Ratings refresh automatically a few seconds after
-        a Triple Heat race. &nbsp;If you skip a race, your rating remains unchanged.
-    </p>
-    <p class="mb-0">
-        <strong>Limitations.</strong> &nbsp;Because Elo needs several data points to stabilise,
-        we list only drivers with at least <strong>three</strong> participations. Car-specific
-        skill and other nuances are not yet separated, so treat the rating as an approximate
-        but useful indicator.
-    </p>
+<div class="card bg-dark border-danger mb-4">
+    <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <span class="display-6">📈</span>
+        <div class="flex-grow-1" style="min-width: 260px;">
+            <h1 class="h4 mb-1">Triple Heat <span class="text-danger">ELO</span></h1>
+            <p class="mb-0 text-secondary">
+                One number that approximates skill: beat your <em>expected finishing
+                position</em> and you gain — fall short and you lose. Updates seconds
+                after every Triple Heat race; skipped races don't count.
+                Listed from <strong>3</strong> participations.
+            </p>
+        </div>
+    </div>
 </div>
 
 <div class="table-responsive">

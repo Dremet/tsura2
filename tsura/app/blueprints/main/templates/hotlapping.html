@@ -22,7 +22,7 @@
             {% for s in sessions %}
             <tr>
                 <td>{{ loop.index }}</td>
-                <td>{{ s.track_name }}</td>
+                <td><span class="fi fi-{{ track_flag(s.track_name) }} me-1"></span>{{ s.track_name }}</td>
                 <td>
                     <span data-bs-toggle="tooltip" title="{{ s.cars_used | join(', ') if s.cars_used else '—' }}">
                         {{ s.cars_used[0] if s.cars_used else '—' }}{% if s.cars_used and s.cars_used|length > 1 %} +{{ s.cars_used|length - 1 }}{% endif %}

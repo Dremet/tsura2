@@ -162,15 +162,9 @@ def _seasons(cur):
 def home():
     with _cur() as cur:
         season = _active_season(cur)
-        standings, balance, enrolled = [], None, False
+        balance, enrolled = None, False
         challenge, day_objs = None, []
         if season:
-            cur.execute(
-                "SELECT * FROM mart.v_career_standings WHERE season_id = %s "
-                "ORDER BY points_total DESC, wins DESC LIMIT 10", (season["id"],))
-            from ..main.routes import _flag_code
-            standings = [dict(r, flag_code=_flag_code(r.get("driver_flag")))
-                         for r in cur.fetchall()]
             sid = g.get("current_steam_id")
             if sid:
                 cur.execute("SELECT 1 FROM career.enrollments "
@@ -203,7 +197,7 @@ def home():
                 if sid:
                     challenge = next((o for o in day_objs
                                       if str(o["steam_id"]) == str(sid)), None)
-    return render_template("career/home.html", season=season, standings=standings,
+    return render_template("career/home.html", season=season,
                            balance=balance, enrolled=enrolled,
                            challenge=challenge, day_objs=day_objs,
                            is_admin=_is_admin(g.get("current_steam_id")),
@@ -222,7 +216,9 @@ def standings():
             cur.execute(
                 "SELECT * FROM mart.v_career_standings WHERE season_id = %s "
                 "ORDER BY points_total DESC, wins DESC", (season["id"],))
-            rows = cur.fetchall()
+            from ..main.routes import _flag_code
+            rows = [dict(r, flag_code=_flag_code(r.get("driver_flag")))
+                    for r in cur.fetchall()]
             cur.execute(
                 "SELECT p.steam_id, p.points, p.reason, p.created_at, "
                 "  (SELECT dc.driver_name FROM mart.v_career_driver_cars dc "
@@ -252,6 +248,12 @@ def upgrades():
                 "FROM mart.v_career_upgrades WHERE season_id = %s "
                 "ORDER BY driver_name", (season["id"],))
             urows = cur.fetchall()
+            # driver flags (v_career_upgrades has none; standings does)
+            cur.execute("SELECT steam_id, driver_flag FROM mart.v_career_standings "
+                        "WHERE season_id = %s", (season["id"],))
+            from ..main.routes import _flag_code
+            flag_by_sid = {r["steam_id"]: _flag_code(r.get("driver_flag"))
+                           for r in cur.fetchall()}
             field_max = {}   # axis -> highest tier anyone runs (field strength)
             for r in urows:
                 field_max[r["axis"]] = max(field_max.get(r["axis"], 0), r["tier"])
@@ -260,6 +262,7 @@ def upgrades():
                 d = per_driver.setdefault(
                     r["steam_id"],
                     {"driver_name": r["driver_name"], "steam_id": r["steam_id"],
+                     "flag_code": flag_by_sid.get(r["steam_id"], ""),
                      "axes": {}, "spent": 0})
                 _cfg = axes_cfg.get(r["axis"]) or {}
                 gr, col = _field_grade(r["tier"], _cfg.get("max_tier"),
@@ -281,11 +284,14 @@ def results():
             SELECT r.session_id, r.utc_start_time, r.track_name, r.season_id,
                    MIN(r.participant_count) AS participants,
                    MIN(r.driver_name) FILTER (WHERE r.position = 1) AS winner,
-                   MIN(r.steam_id) FILTER (WHERE r.position = 1) AS winner_steam_id
+                   MIN(r.steam_id) FILTER (WHERE r.position = 1) AS winner_steam_id,
+                   MIN(r.driver_flag) FILTER (WHERE r.position = 1) AS winner_flag
               FROM mart.v_career_results r
           GROUP BY r.session_id, r.utc_start_time, r.track_name, r.season_id
           ORDER BY r.utc_start_time DESC LIMIT 100""")
-        sessions = cur.fetchall()
+        from ..main.routes import _flag_code
+        sessions = [dict(r, winner_flag_code=_flag_code(r.get("winner_flag")))
+                    for r in cur.fetchall()]
     return render_template("career/results.html", sessions=sessions)
 
 
@@ -294,7 +300,9 @@ def result_detail(session_id):
     with _cur() as cur:
         cur.execute("SELECT * FROM mart.v_career_results WHERE session_id = %s "
                     "ORDER BY position", (session_id,))
-        rows = cur.fetchall()
+        from ..main.routes import _flag_code
+        rows = [dict(r, flag_code=_flag_code(r.get("driver_flag")))
+                for r in cur.fetchall()]
     if not rows:
         abort(404)
     return render_template("career/result_detail.html", rows=rows,

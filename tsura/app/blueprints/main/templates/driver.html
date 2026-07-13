@@ -311,11 +311,13 @@
                         <span class="badge bg-danger">Triple Heat</span>
                         {% elif r.server == 'casual_heat' %}
                         <span class="badge bg-primary">Casual Heat</span>
+                        {% elif r.server == 'career' %}
+                        <span class="badge bg-warning text-dark">Career</span>
                         {% else %}
                         <span class="badge bg-secondary">Event</span>
                         {% endif %}
                     </td>
-                    <td>{{ r.track_name }}</td>
+                    <td><span class="fi fi-{{ track_flag(r.track_name) }} me-1"></span>{{ r.track_name }}</td>
                     <td><strong>{{ r.position if r.position else '—' }}</strong></td>
                     <td>{{ r.human_count }}</td>
                     <td>

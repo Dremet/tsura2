@@ -1,16 +1,14 @@
 {% extends "base.html" %}
 {% block title %}TSURA | Home{% endblock %}
 {% block content %}
-<section class="intro mb-4">
-    <p>
-        <strong>Turbo Sliders Unlimited Racing Association (TSURA)</strong> is a community-driven initiative focused on
-        organized competitive racing in <em>Turbo Sliders Unlimited</em>. It goes beyond just this website and the data
-        processing behind it — TSURA also involves event planning, community-building, ELO-based rankings,
-        custom servers and more.
-        <br />
-        This site showcases live statistics gathered from the Event, Hotlapping and Triple Heat server.
-        For questions or bugs, please contact <strong>Dremet</strong> on Discord.
+<section class="intro mb-4 p-4 rounded border border-danger"
+         style="background: linear-gradient(135deg, rgba(220,53,69,.18), rgba(0,0,0,0) 60%);">
+    <h1 class="h3 mb-2">Welcome to <span class="text-danger">TSURA</span> 🏁</h1>
+    <p class="lead mb-1">
+        Organized community racing in <em>Turbo Sliders Unlimited</em> —
+        live stats, ELO rankings and weekly race nights.
     </p>
+    <p class="mb-0 text-secondary small">Questions or bugs → <strong>Dremet</strong> on Discord.</p>
 </section>
 
 {% macro server_summary(title, badge_class, badge_label, sessions, server_key) %}
@@ -36,7 +34,7 @@
                 {% for s in sessions %}
                 <tr>
                     <td class="text-muted small">{{ s.utc_start_time.strftime('%H:%M') }}</td>
-                    <td class="text-truncate" title="{{ s.track_name }}">{{ s.track_name }}</td>
+                    <td class="text-truncate" title="{{ s.track_name }}"><span class="fi fi-{{ track_flag(s.track_name) }} me-1"></span>{{ s.track_name }}</td>
                     <td>{{ s.human_count }}</td>
                     <td class="text-truncate" title="{{ s.winner or '' }}">{{ s.winner or '—' }}</td>
                     <td>
@@ -59,12 +57,29 @@
         <div class="card mb-3">
             <div class="card-body">
                 <h2 class="card-title">Current Hotlapping Combination</h2>
-                <p><strong>Track:</strong> {{ hotlap.track_name }}</p>
+                <p><strong>Track:</strong> <span class="fi fi-{{ track_flag(hotlap.track_name) }} me-1"></span>{{ hotlap.track_name }}</p>
                 <p>
                     <strong>Cars:</strong>
                     {{ hotlap.cars_used | join(', ') }}
                 </p>
                 <p><strong>Since:</strong> {{ hotlap.session_start.strftime('%Y-%m-%d %H:%M') }}</p>
+                {% if hotlap_top %}
+                <table class="table table-dark table-sm align-middle mb-3">
+                    <tbody>
+                        {% for r in hotlap_top %}
+                        <tr>
+                            <td class="text-muted" style="width:2rem">{{ loop.index }}</td>
+                            <td>{% if r.flag_code %}<span class="fi fi-{{ r.flag_code }} me-1"></span>{% endif %}
+                                <a href="{{ url_for('main.driver_profile', driver_id=r.steam_id) }}"
+                                   class="text-white">{{ r.driver_name }}</a>
+                                <span class="text-secondary small">{{ r.vehicle_name }}</span></td>
+                            <td class="text-end font-monospace">{{ r.lap_fmt }}
+                                {% if not loop.first %}<span class="text-secondary small">{{ r.diff_fmt }}</span>{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
                 <a href="{{ url_for('main.hotlapping_detail', group_id=hotlap.group_id) }}" class="btn btn-warm-red btn-sm me-2">Current Session</a>
                 <a href="{{ url_for('main.hotlapping') }}" class="btn btn-outline-secondary btn-sm">All Sessions</a>
             </div>
@@ -77,8 +92,32 @@
         {{ server_summary("Casual Heat", "bg-primary", "Casual Heat", summary_casual, "casual_heat") }}
     </div>
 
-    <!-- RIGHT column: Currently active servers -->
+    <!-- RIGHT column: ELO top list + currently active servers -->
     <div class="col-lg-4">
+        {% if elo_top %}
+        <div class="card mb-4">
+            <div class="card-header bg-danger d-flex align-items-center">
+                <strong>ELO Top 10</strong>
+                <a href="{{ url_for('main.elo_heats') }}" class="ms-auto btn btn-light btn-sm">Full ranking</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-dark table-hover align-middle mb-0">
+                    <tbody>
+                        {% for r in elo_top %}
+                        <tr>
+                            <td class="text-muted" style="width:2.5rem">{{ loop.index }}</td>
+                            <td>{% if r.flag_code %}<span class="fi fi-{{ r.flag_code }} me-1"></span>{% endif %}
+                                <a href="{{ url_for('main.driver_profile', driver_id=r.steam_id) }}"
+                                   class="text-white">{{ r.driver_name }}</a></td>
+                            <td class="text-end fw-bold">{{ r.heat_elo }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
         <h2 class="mb-3">Current Servers</h2>
         <div class="table-responsive">
             <table class="table table-dark table-hover align-middle">

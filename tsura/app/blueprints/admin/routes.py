@@ -1216,3 +1216,58 @@ def admins_remove():
     _sync_ingame_admins()
     flash("Admin removed (panel access + in-game).", "success")
     return redirect(url_for("admin.admins"))
+
+
+# ------------------------------------------------------------ track flags
+_COUNTRY_CODE_RE = re.compile(r"^[a-z]{2}(-[a-z]{2,3})?$")
+
+
+@admin_bp.route("/tracks", methods=["GET", "POST"])
+def tracks():
+    """Assign a country flag to every track (open to all server admins).
+
+    The website shows a flag next to each track name; unknown/fictional
+    tracks use the neutral 'xx' placeholder. New tracks appear here
+    automatically once the pipeline has ingested a race on them.
+    """
+    sid = g.get("current_steam_id")
+    if not user_admin_servers(sid):
+        abort(403)
+
+    if request.method == "POST":
+        if not _csrf_ok():
+            abort(400)
+        name = (request.form.get("track_name") or "").strip()
+        code = (request.form.get("country_code") or "").strip().lower()
+        if not name or not _COUNTRY_CODE_RE.fullmatch(code):
+            flash("Invalid country code — use a lowercase flag-icons code "
+                  "like 'de', 'us' or 'xx' (unknown).", "danger")
+        else:
+            with _cur() as cur:
+                cur.execute(
+                    "INSERT INTO webadmin.track_countries"
+                    " (track_name, country_code, updated_by)"
+                    " VALUES (%s, %s, %s)"
+                    " ON CONFLICT (track_name) DO UPDATE"
+                    " SET country_code = EXCLUDED.country_code,"
+                    "     updated_by = EXCLUDED.updated_by,"
+                    "     updated_at = now()",
+                    (name, code, sid),
+                )
+                cur.connection.commit()
+            flash(f"Saved: {name} → {code}", "success")
+        return redirect(url_for("admin.tracks"))
+
+    with _cur() as cur:
+        cur.execute(
+            "SELECT t.name AS track_name, c.country_code"
+            "  FROM (SELECT DISTINCT name FROM base.tracks) t"
+            "  LEFT JOIN webadmin.track_countries c ON c.track_name = t.name"
+            " ORDER BY (COALESCE(c.country_code, 'xx') <> 'xx'), t.name")
+        rows = cur.fetchall()
+    unassigned = sum(1 for r in rows
+                     if (r["country_code"] or "xx") == "xx")
+    return render_template("admin/tracks.html", rows=rows,
+                           unassigned=unassigned,
+                           csrf_token=make_csrf_token(
+                               g.session_id, current_app.config["SECRET_KEY"]))

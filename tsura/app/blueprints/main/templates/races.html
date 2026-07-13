@@ -41,7 +41,7 @@
                     <span class="badge bg-secondary">Event</span>
                     {% endif %}
                 </td>
-                <td>{{ race.track_name }}</td>
+                <td><span class="fi fi-{{ track_flag(race.track_name) }} me-1"></span>{{ race.track_name }}</td>
                 <td>{{ race.human_count }}</td>
                 <td>
                     {% if race.cars %}

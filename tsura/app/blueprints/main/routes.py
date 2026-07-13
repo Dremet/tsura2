@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 import re
+import time
 from collections import defaultdict, OrderedDict
 from typing import List
 
@@ -94,6 +95,40 @@ def _flag_code(flag_text: str | None) -> str:
     if not flag_text:
         return ""
     return _FLAG_CODE_MAP.get(flag_text, "")
+
+
+# ── Track → country flags (webadmin.track_countries, admin-maintained) ──────
+_TRACK_FLAGS: dict = {"data": {}, "loaded_at": 0.0}
+
+
+def _track_flag_map() -> dict:
+    """track_name -> flag-icons code, cached for 5 minutes."""
+    now = time.monotonic()
+    if now - _TRACK_FLAGS["loaded_at"] > 300 or not _TRACK_FLAGS["data"]:
+        try:
+            conn = db_pool.get_conn()
+            with conn.cursor() as cur:
+                cur.execute("SELECT to_regclass('webadmin.track_countries') "
+                            "IS NOT NULL")
+                if cur.fetchone()[0]:
+                    cur.execute("SELECT track_name, country_code "
+                                "FROM webadmin.track_countries")
+                    _TRACK_FLAGS["data"] = dict(cur.fetchall())
+        except Exception:
+            conn = g.pop("db_conn", None)
+            if conn is not None:
+                conn.rollback()
+                g.db_conn = conn
+        _TRACK_FLAGS["loaded_at"] = now
+    return _TRACK_FLAGS["data"]
+
+
+@main_bp.app_context_processor
+def _inject_track_flag():
+    def track_flag(name: str | None) -> str:
+        """flag-icons code for a track name; 'xx' (globe placeholder) if unknown."""
+        return _track_flag_map().get(name or "") or "xx"
+    return {"track_flag": track_flag}
 
 
 API_URL = (
@@ -193,12 +228,45 @@ def index():
         )
         hotlap = cur.fetchone()
 
+        hotlap_top = []
+        if hotlap:
+            cur.execute(
+                """
+                SELECT steam_id, driver_name, driver_flag, vehicle_name,
+                       lap_time,
+                       lap_time - MIN(lap_time) OVER () AS diff_to_best
+                  FROM mart.v_hotlap_group_results
+                 WHERE group_id = %s AND is_best_lap = true
+              ORDER BY lap_time
+                 LIMIT 3;
+                """,
+                (hotlap["group_id"],),
+            )
+            hotlap_top = [{**r,
+                           "flag_code": _flag_code(r["driver_flag"]),
+                           "lap_fmt": _fmt_lap_time(r["lap_time"]),
+                           "diff_fmt": _fmt_time_diff(r["diff_to_best"])}
+                          for r in cur.fetchall()]
+
         admin_names = _server_admin_names(cur)
 
         summary_events = _last_day_summary(cur, "events")
         summary_heats  = _last_day_summary(cur, "tripleheat")
         summary_casual = _last_day_summary(cur, "casual_heat")
         summary_career = _last_day_summary(cur, "career")
+
+        # ELO top list (same source as /elo_heats)
+        cur.execute(
+            """
+            SELECT steam_id, driver_name, driver_flag, display_tag, heat_elo
+              FROM mart.v_driver_profile
+             WHERE heat_elo IS NOT NULL AND heat_total_races >= 3
+          ORDER BY heat_elo DESC
+             LIMIT 10;
+            """
+        )
+        elo_top = [{**r, "flag_code": _flag_code(r["driver_flag"])}
+                   for r in cur.fetchall()]
 
     # server list -----------------------------------------------------------
     servers: list[dict] = []
@@ -227,6 +295,8 @@ def index():
         "index.html",
         servers=servers,
         hotlap=hotlap,
+        hotlap_top=hotlap_top,
+        elo_top=elo_top,
         summary_events=summary_events,
         summary_heats=summary_heats,
         summary_casual=summary_casual,

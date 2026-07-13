@@ -29,7 +29,8 @@
       {% set GRANK = {'S':6,'A':5,'B':4,'C':3,'D':2,'E':1,'F':0} %}
       {% for d in table %}
       <tr>
-        <td><a href="{{ url_for('main.driver_profile', driver_id=d.steam_id) }}"
+        <td>{% if d.flag_code %}<span class="fi fi-{{ d.flag_code }} me-1"></span>{% endif %}<a
+               href="{{ url_for('main.driver_profile', driver_id=d.steam_id) }}"
                class="text-white">{{ d.driver_name }}</a></td>
         <td class="text-end fw-bold text-warning">{{ d.spent }}</td>
         {% for a in axes %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Track countries — Admin — TSURA{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('admin.index') }}" class="btn btn-outline-light btn-sm mb-3">← Admin</a>
+<h1 class="mb-2">Track countries</h1>
+<p class="text-secondary mb-1">
+  Every track name on the site gets a flag. Assign the country with a
+  lowercase <a href="https://flagicons.lipis.dev/" target="_blank" rel="noopener"
+  class="link-secondary">flag-icons</a> code (e.g. <code>de</code>, <code>us</code>,
+  <code>gb</code>) — or <code>xx</code> for fictional/unknown tracks (globe placeholder).
+</p>
+<p class="text-secondary mb-4">
+  {% if unassigned %}<span class="badge bg-warning text-dark">{{ unassigned }}</span>
+  track(s) still without a country — they are listed first.{% else %}
+  <span class="badge bg-success">All tracks assigned</span>{% endif %}
+  New tracks show up here automatically after their first race.
+</p>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert alert-{{ cat }} py-2">{{ msg }}</div>
+  {% endfor %}
+{% endwith %}
+
+<div class="table-responsive" style="max-width: 900px;">
+  <table class="table table-dark table-hover align-middle">
+    <thead><tr><th style="width:3rem"></th><th>Track</th>
+      <th style="width:14rem">Country code</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr {% if (r.country_code or 'xx') == 'xx' %}class="table-active"{% endif %}>
+        <td><span class="fi fi-{{ r.country_code or 'xx' }}"></span></td>
+        <td>{{ r.track_name }}</td>
+        <td>
+          <form method="post" class="d-flex gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="track_name" value="{{ r.track_name }}">
+            <input type="text" name="country_code" value="{{ r.country_code or '' }}"
+                   class="form-control form-control-sm bg-dark text-white border-secondary"
+                   style="width:5.5rem" maxlength="6" placeholder="xx"
+                   pattern="[a-z]{2}(-[a-z]{2,3})?" required>
+            <button class="btn btn-warm-red btn-sm">Save</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

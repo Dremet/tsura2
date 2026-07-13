@@ -21,6 +21,21 @@
   </div>
   {% endfor %}
 
+  <div class="col-12 col-sm-6 col-xl-3">
+    <a href="{{ url_for('admin.tracks') }}" class="text-decoration-none">
+      <div class="card h-100 bg-dark border-secondary admin-card"
+           style="border-top: 4px solid #6ea8fe !important;">
+        <div class="card-body">
+          <h3 class="card-title" style="color: #6ea8fe;">Tracks</h3>
+          <p class="card-text text-secondary mb-0">
+            Assign country flags to tracks — new tracks appear here after
+            their first race.
+          </p>
+        </div>
+      </div>
+    </a>
+  </div>
+
   {% if is_owner %}
   <div class="col-12 col-sm-6 col-xl-3">
     <a href="{{ url_for('admin.admins') }}" class="text-decoration-none">
