@@ -23,21 +23,21 @@
         <table class="table table-dark table-hover align-middle mb-0" style="table-layout:fixed">
             <thead>
                 <tr>
-                    <th style="width:11%">Time</th>
-                    <th style="width:37%">Track</th>
-                    <th style="width:14%">Drivers</th>
-                    <th style="width:26%">Winner</th>
-                    <th style="width:12%"></th>
+                    <th class="d-none d-sm-table-cell" style="width:11%">Time</th>
+                    <th>Track</th>
+                    <th class="d-none d-sm-table-cell" style="width:14%">Drivers</th>
+                    <th style="width:28%">Winner</th>
+                    <th style="width:4.5rem"></th>
                 </tr>
             </thead>
             <tbody>
                 {% for s in sessions %}
                 <tr>
-                    <td class="text-muted small">{{ s.utc_start_time.strftime('%H:%M') }}</td>
+                    <td class="text-muted small d-none d-sm-table-cell">{{ s.utc_start_time.strftime('%H:%M') }}</td>
                     <td class="text-truncate" title="{{ s.track_name }}"><span class="fi fi-{{ track_flag(s.track_name) }} me-1"></span>{{ s.track_name }}</td>
-                    <td>{{ s.human_count }}</td>
+                    <td class="d-none d-sm-table-cell">{{ s.human_count }}</td>
                     <td class="text-truncate" title="{{ s.winner or '' }}">{{ s.winner or '—' }}</td>
-                    <td>
+                    <td class="text-end pe-2">
                         <a href="{{ url_for('main.race_detail', session_id=s.session_id) }}"
                            class="btn btn-warm-red btn-sm">View</a>
                     </td>

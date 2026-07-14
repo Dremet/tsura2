@@ -32,15 +32,15 @@
       <div class="fs-3 fw-bold text-warning js-deadline">…</div>
     </div>
   </div>
-  <div class="d-flex align-items-center mb-3">
-    <div class="me-4">Season: <strong>{{ season.name }}</strong> · Base car:
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <div class="me-auto">Season: <strong>{{ season.name }}</strong> · Base car:
       <strong>{{ season.base_vehicle_name }}</strong></div>
-    <div class="ms-auto fs-5">Credits: <span class="text-warning fw-bold">{{ balance }}</span></div>
-    <a class="btn btn-outline-light btn-sm ms-3" href="{{ url_for('career.download_car') }}"
+    <div class="fs-5">Credits: <span class="text-warning fw-bold">{{ balance }}</span></div>
+    <a class="btn btn-outline-light btn-sm" href="{{ url_for('career.download_car') }}"
        title="Test your current tuning offline — the same car is forced onto you on race night.">
       Download my car (.veh)</a>
     {% if undo_info %}
-    <form method="post" action="{{ url_for('career.undo') }}" class="ms-2 mb-0">
+    <form method="post" action="{{ url_for('career.undo') }}" class="mb-0">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button class="btn btn-outline-warning btn-sm"
               title="Only your most recent upgrade can be undone.">
