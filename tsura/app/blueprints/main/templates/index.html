@@ -73,7 +73,7 @@
                                 <a href="{{ url_for('main.driver_profile', driver_id=r.steam_id) }}"
                                    class="text-white">{{ r.driver_name }}</a>
                                 <span class="text-secondary small">{{ r.vehicle_name }}</span></td>
-                            <td class="text-end font-monospace">{{ r.lap_fmt }}
+                            <td class="text-end tnum">{{ r.lap_fmt }}
                                 {% if not loop.first %}<span class="text-secondary small">{{ r.diff_fmt }}</span>{% endif %}</td>
                         </tr>
                         {% endfor %}

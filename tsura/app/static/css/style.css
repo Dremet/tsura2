@@ -93,3 +93,7 @@ body>.container-fluid {
 .sector-best {
     color: #b400ff !important;
 }
+/* Equal-width digits in the site font — for aligned time/number columns */
+.tnum {
+    font-variant-numeric: tabular-nums;
+}
