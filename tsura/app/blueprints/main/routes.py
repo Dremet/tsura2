@@ -588,6 +588,7 @@ def race_detail(session_id: str):
                 finished_state,
                 steam_id,
                 driver_name,
+                is_ai,
                 driver_flag,
                 driver_clan,
                 display_tag,
