@@ -63,6 +63,12 @@ SERVERS = {
         "description": "Upload cars, tracks and camera settings for the "
                        "manually hosted #1 Event Server.",
     },
+    "topdown": {
+        "label": "TopDown",
+        "color": "#fd7e14",
+        "description": "Track and car pool, laps, bots and cameras for the "
+                       "automatic top-down heats.",
+    },
 }
 
 # Unix account behind each game server.
@@ -72,13 +78,14 @@ SERVER_UNIX_USER = {
     "hotlapping": "hotlapping",
     "events": "events",
     "career": "career",
+    "topdown": "topdown",
 }
 
 # Where each game server lives on disk (uploads go to server/config/<subdir>).
 SERVER_HOME = {s: f"/home/{u}" for s, u in SERVER_UNIX_USER.items()}
 
 # Servers that take file uploads via the panel (career cars are generated).
-UPLOAD_SERVERS = ("tripleheat", "casual_heat", "hotlapping", "events")
+UPLOAD_SERVERS = ("tripleheat", "casual_heat", "hotlapping", "events", "topdown")
 
 # Server-control actions -> script in the game user's home (run via a
 # narrow sudoers rule in /etc/sudoers.d/tsura-server-admin).
@@ -90,12 +97,22 @@ PANEL_ENDPOINT = {
     "casual_heat": "admin.casual_heat",
     "hotlapping": "admin.hotlapping",
     "events": "admin.events",
+    "topdown": "admin.topdown",
 }
 
 UPLOAD_KINDS = {
     "vehicle": {"subdir": "Vehicles", "ext": ".veh", "magic": b"PK", "label": "car"},
     "track": {"subdir": "Levels", "ext": ".lvl", "magic": None, "label": "track"},
+    # AI driving lines, one file per track/car pair. Only topdown offers these:
+    # in-game they can be uploaded during session init only, and its controller
+    # starts a heat 30s after someone joins, so that window is unusable there.
+    "ai_line": {"subdir": "AI", "ext": ".aid", "magic": None,
+                "label": "AI line"},
 }
+
+# Which upload boxes a panel shows. AI lines are a topdown-only concept.
+SERVER_UPLOAD_KINDS = {s: ("vehicle", "track") for s in UPLOAD_SERVERS}
+SERVER_UPLOAD_KINDS["topdown"] = ("vehicle", "track", "ai_line")
 
 CAMERA_PATH = "/home/events/server/config/camera.json"
 BACKUP_DIR = "/srv/tsura/server_config/backups"
@@ -479,9 +496,12 @@ def _recent_files(server: str, kind: str, n: int = 8) -> list:
 
 
 def _upload_context(server: str) -> dict:
+    kinds = SERVER_UPLOAD_KINDS.get(server, ("vehicle", "track"))
     return {
         "upload_server": server,
-        "recent_uploads": {k: _recent_files(server, k) for k in UPLOAD_KINDS},
+        "upload_kinds": kinds,
+        "upload_labels": {k: UPLOAD_KINDS[k] for k in kinds},
+        "recent_uploads": {k: _recent_files(server, k) for k in kinds},
     }
 
 
@@ -651,6 +671,393 @@ def _check_content_names(kind: str, names, server: str, extra_known=()) -> None:
         )
 
 
+# --------------------------------------------------------------- topdown
+# The heat controller's parts bin and its AI lines. Both are world-readable
+# under /home/topdown; the panel only ever reads them.
+TOPDOWN_HOME = SERVER_HOME["topdown"]
+TOPDOWN_PARTS_DIR = os.path.join(TOPDOWN_HOME, "session_parts")
+TOPDOWN_CAMFILE = os.path.join(TOPDOWN_HOME, "td", "camfile.py")
+TOPDOWN_AI_DIR = os.path.join(TOPDOWN_HOME, "server", "config", "AI")
+
+# ai-<track guid>-<car guid>.aid — the layout the game exports.
+AI_LINE_RE = re.compile(
+    r"^ai-(?P<track>[0-9a-z]+-[0-9a-z]+)-(?P<car>[0-9a-z]+-[0-9a-z]+)\.aid$",
+    re.IGNORECASE)
+
+# ai.aiSkill is an enum, not a scale (read out of the game's metadata,
+# 2026-08-11). 10-12 need a matching AI/customN.aic on the server: McVizn's
+# export sat on 10 with no file, which is why the bots were odd for weeks.
+AI_SKILLS = [
+    (1, "Low"), (2, "Medium Low"), (3, "Medium"), (4, "Medium High"),
+    (5, "High"), (10, "Custom 1 (needs AI/custom1.aic)"),
+    (11, "Custom 2 (needs AI/custom2.aic)"),
+    (12, "Custom 3 (needs AI/custom3.aic)"), (100, "Mixed"),
+]
+
+HUMAN_START_POSITIONS = [
+    (0, "Normal grid slot"), (1, "Forced at the first event only"),
+    (2, "Always forced to the back"),
+]
+
+# What the panel lets an admin change about a camera. Everything else in a
+# .cam file (look mode, prediction, trackside timing) stays as exported.
+CAMERA_FIELDS = [
+    ("distance", "Zoom (distance)", "0.01"),
+    ("verticalAngle", "Vertical angle", "0.01"),
+    ("horizontalAngle", "Heading", "0.01"),
+    ("fov", "Field of view", "0.01"),
+]
+
+
+def _topdown_camfile():
+    """The controller's own .cam decoder, loaded from its file.
+
+    Imported rather than copied so there is exactly one implementation of a
+    format that took a while to work out. If it ever moves, the panel loses
+    the camera read-out but stays usable.
+    """
+    import importlib.util
+    cached = getattr(_topdown_camfile, "_mod", None)
+    if cached is not None:
+        return cached
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "topdown_camfile", TOPDOWN_CAMFILE)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    except Exception:
+        mod = None
+    _topdown_camfile._mod = mod
+    return mod
+
+
+def _topdown_parts() -> dict:
+    """Track name -> {guid, camera} for every track McVizn has exported."""
+    out = {}
+    camfile = _topdown_camfile()
+    tracks_dir = os.path.join(TOPDOWN_PARTS_DIR, "tracks")
+    try:
+        names = sorted(os.listdir(tracks_dir))
+    except OSError:
+        return out
+    for name in names:
+        level = _load_json(os.path.join(tracks_dir, name, "level.json"))
+        if not level or not level.get("name"):
+            continue
+        camera = None
+        if camfile:
+            try:
+                camera = camfile.decode_file(
+                    os.path.join(tracks_dir, name, "camera5.cam"))
+            except Exception:
+                camera = None
+        out[level["name"]] = {"camera": camera}
+    return out
+
+
+def _topdown_ai_pairs() -> set:
+    """(track guid, car guid) pairs that have an AI driving line on disk."""
+    pairs = set()
+    try:
+        names = os.listdir(TOPDOWN_AI_DIR)
+    except OSError:
+        return pairs
+    for fn in names:
+        m = AI_LINE_RE.match(fn)
+        if m:
+            pairs.add((m.group("track").lower(), m.group("car").lower()))
+    return pairs
+
+
+def _guid_lookup(column: str, name_column: str) -> dict:
+    """Name -> GUID for everything ever raced on a TSURA server.
+
+    The result files carry both, so the panel can fill in the GUID of a track
+    or car instead of asking an admin for a string they have no way to know.
+    """
+    try:
+        with _cur() as cur:
+            cur.execute(
+                f"SELECT DISTINCT {name_column} AS name, {column} AS guid"
+                f"  FROM mart.v_race_results"
+                f" WHERE {column} IS NOT NULL AND {name_column} IS NOT NULL"
+                f" ORDER BY 1"
+            )
+            return {r["name"]: r["guid"] for r in cur.fetchall()}
+    except Exception:
+        return {}
+
+
+def _topdown_known_guids() -> tuple:
+    return (_guid_lookup("track_guid", "track_name"),
+            _guid_lookup("vehicle_guid", "vehicle_name"))
+
+
+def _rows_from_form(prefix: str) -> list:
+    """Collect indexed form rows (`t0_name`, `t1_name`, …) in order.
+
+    Rows whose delete box is ticked, and the trailing blank "add" row, drop
+    out here so the caller only sees what should be saved.
+    """
+    indexes = set()
+    pattern = re.compile(rf"^{prefix}(\d+)_")
+    for key in request.form:
+        m = pattern.match(key)
+        if m:
+            indexes.add(int(m.group(1)))
+    rows = []
+    for i in sorted(indexes):
+        if request.form.get(f"{prefix}{i}_delete") == "1":
+            continue
+        row = {k[len(f"{prefix}{i}_"):]: v.strip()
+               for k, v in request.form.items()
+               if k.startswith(f"{prefix}{i}_")}
+        if not row.get("name"):
+            continue
+        rows.append(row)
+    return rows
+
+
+def _num_or_none(raw: str, label: str, lo: float, hi: float):
+    if raw in (None, ""):
+        return None
+    try:
+        val = float(raw)
+    except ValueError:
+        raise ValueError(f"{label}: '{raw}' is not a number")
+    if not lo <= val <= hi:
+        raise ValueError(f"{label} must be between {lo:g} and {hi:g}")
+    return val
+
+
+def _topdown_tracks_from_form(old_tracks: dict) -> list:
+    """Build the track list out of the posted rows.
+
+    Camera values are stored only where they differ from what the exported
+    camera5.cam already says, so an untouched track keeps using McVizn's file
+    byte for byte and a re-export still reaches the server.
+    """
+    parts = _topdown_parts()
+    tracks = []
+    for row in _rows_from_form("t"):
+        name = row["name"]
+        guid = row.get("guid", "").strip()
+        if not guid and name not in parts:
+            raise ValueError(
+                f"'{name}': a track that has no session export needs its GUID "
+                f"— pick the track from the list to fill it in automatically.")
+        track = dict(old_tracks.get(name) or {})
+        track["name"] = name
+        if guid:
+            track["guid"] = guid
+        track["laps"] = int(_num_or_none(row.get("laps"), f"'{name}' laps",
+                                         1, 200) or 1)
+        track["weight"] = 1.0 if row.get("enabled") == "1" else 0.0
+        variance = _num_or_none(row.get("variance"), f"'{name}' lap variance",
+                                0, 100)
+        if variance is None:
+            track.pop("lap_bonus_pct", None)
+        else:
+            track["lap_bonus_pct"] = variance
+        if row.get("camera_from"):
+            track["camera_from"] = row["camera_from"]
+        else:
+            track.pop("camera_from", None)
+
+        # Compare against whatever the track would use without an override, so
+        # an unedited form stores nothing at all.
+        exported = (parts.get(name) or {}).get("camera") or {}
+        if not exported and row.get("camera_from"):
+            exported = (parts.get(row["camera_from"]) or {}).get("camera") or {}
+        camera = {}
+        for key, label, _step in CAMERA_FIELDS:
+            value = _num_or_none(row.get(f"cam_{key}"), f"'{name}' {label}",
+                                 -100000, 100000)
+            if value is None:
+                continue
+            # Only a real difference is worth overriding the export with.
+            if key in exported and abs(float(exported[key]) - value) < 1e-4:
+                continue
+            camera[key] = value
+        if row.get("camera_reset") == "1" or not camera:
+            track.pop("camera_settings", None)
+        else:
+            track["camera_settings"] = camera
+        tracks.append(track)
+    if not tracks:
+        raise ValueError("At least one track is needed — a heat without "
+                         "tracks cannot start.")
+    if not any(t["weight"] > 0 for t in tracks):
+        raise ValueError("At least one track must stay enabled.")
+    return tracks
+
+
+def _topdown_vehicles_from_form(cfg: dict) -> tuple:
+    """The car pool plus the per-car drafting block."""
+    vehicles, drafting_by_vehicle = [], {}
+    base = cfg.get("drafting") or {}
+    for row in _rows_from_form("v"):
+        name = row["name"]
+        guid = row.get("guid", "").strip()
+        if not guid:
+            raise ValueError(
+                f"'{name}': a car needs its GUID — pick the car from the list "
+                f"to fill it in automatically.")
+        vehicles.append({"name": name, "guid": guid,
+                         "weight": 1.0 if row.get("enabled") == "1" else 0.0})
+        overrides = {}
+        for key, label in (("maxDraftingDistance", "draft distance"),
+                           ("draftingSpeedEffect", "draft speed effect")):
+            value = _num_or_none(row.get(key), f"'{name}' {label}", 0, 1000)
+            if value is None or _approx_equal(value, base.get(key)):
+                continue
+            overrides[key] = value
+        if overrides:
+            drafting_by_vehicle[name] = overrides
+    if not vehicles:
+        raise ValueError("At least one car is needed.")
+    if not any(v["weight"] > 0 for v in vehicles):
+        raise ValueError("At least one car must stay enabled.")
+    return vehicles, drafting_by_vehicle
+
+
+@admin_bp.route("/topdown", methods=["GET", "POST"])
+@_server_admin_required("topdown")
+def topdown():
+    if request.method == "POST":
+        if not _csrf_ok():
+            abort(400)
+        cfg = _load_config("topdown")
+        try:
+            old_tracks = {t.get("name"): t for t in cfg.get("tracks") or []}
+            names = [r["name"] for r in _rows_from_form("t")]
+            _check_content_names("track", names, "topdown",
+                                 extra_known=list(old_tracks))
+            car_names = [r["name"] for r in _rows_from_form("v")]
+            _check_content_names("vehicle", car_names, "topdown",
+                                 extra_known=[v.get("name") for v in
+                                              cfg.get("vehicles") or []])
+
+            cfg["tracks_per_heat"] = _form_int(
+                "tracks_per_heat", "Tracks per heat", 1, 20)
+            cfg["lap_bonus_max_pct"] = _form_int(
+                "lap_bonus_max_pct", "Default lap variance", 0, 100)
+            cfg["countdown_seconds"] = _form_int(
+                "countdown_seconds", "Countdown", 5, 600)
+            cfg["cooldown_seconds"] = _form_int(
+                "cooldown_seconds", "Cooldown between heats", 5, 600)
+            cfg["quali"] = dict(cfg.get("quali") or {},
+                                laps=_form_int("quali_laps", "Qualifying laps",
+                                               1, 10))
+
+            drafting = dict(cfg.get("drafting") or {})
+            drafting["maxDraftingDistance"] = _form_int(
+                "draft_distance", "Draft distance", 0, 1000)
+            drafting["draftingSpeedEffect"] = _form_int(
+                "draft_speed", "Draft speed effect", 0, 100)
+            cfg["drafting"] = drafting
+
+            cfg["bot_fill"] = _form_int("bot_fill", "Grid size with bots", 0, 20)
+            cfg["max_drivers"] = _form_int("max_drivers", "Maximum drivers", 1, 20)
+            cfg["bots_off_from_humans"] = _form_int(
+                "bots_off_from_humans", "Bots off from … humans", 1, 20)
+            ai = dict(cfg.get("ai") or {})
+            ai["aiSkill"] = _form_int("ai_skill", "Bot strength", 1, 100)
+            ai["humanStartPosition"] = _form_int(
+                "human_start", "Human start position", 0, 2)
+            cfg["ai"] = ai
+
+            # Tracks and cars last: they raise the most specific errors, and a
+            # rejected save must leave the whole config untouched.
+            cfg["tracks"] = _topdown_tracks_from_form(old_tracks)
+            vehicles, by_vehicle = _topdown_vehicles_from_form(cfg)
+            cfg["vehicles"] = vehicles
+            cfg["drafting_by_vehicle"] = by_vehicle
+            # Superseded by the pool; leaving them would be a second truth.
+            cfg.pop("vehicle", None)
+            cfg.pop("vehicle_guid", None)
+
+            _save_config("topdown", cfg)
+            flash("TopDown config saved — it applies to the next heat "
+                  "(no restart needed).", "success")
+        except ValueError as exc:
+            flash(str(exc), "danger")
+        except OSError as exc:
+            flash(f"Could not write config: {exc}", "danger")
+        return redirect(url_for("admin.topdown"))
+
+    cfg = _load_config("topdown")
+    parts = _topdown_parts()
+    ai_pairs = _topdown_ai_pairs()
+    track_guids, car_guids = _topdown_known_guids()
+    vehicles = cfg.get("vehicles") or []
+    if not vehicles and cfg.get("vehicle"):
+        vehicles = [{"name": cfg["vehicle"], "guid": cfg.get("vehicle_guid", ""),
+                     "weight": 1.0}]
+    by_vehicle = cfg.get("drafting_by_vehicle") or {}
+
+    tracks = []
+    for t in cfg.get("tracks") or []:
+        exported = (parts.get(t.get("name")) or {}).get("camera")
+        overrides = t.get("camera_settings") or {}
+        # Show what the track will actually be driven with: the exported
+        # camera, or the one it borrows, with the config's edits on top.
+        borrowed = (parts.get(t.get("camera_from")) or {}).get("camera")
+        camera = dict(exported or borrowed or {})
+        camera.update(overrides)
+        if exported is not None:
+            source = "config" if overrides else "session export"
+        elif t.get("camera_from"):
+            source = f"copied from {t['camera_from']}"
+        else:
+            source = "config" if overrides else "default camera"
+        tracks.append({
+            **t,
+            "enabled": float(t.get("weight", 1) or 0) > 0,
+            "camera": camera,
+            "camera_source": source,
+            "has_export": t.get("name") in parts,
+            "bots": {v.get("name"): (str(t.get("guid", "")).lower(),
+                                     str(v.get("guid", "")).lower()) in ai_pairs
+                     for v in vehicles},
+        })
+
+    return render_template(
+        "admin/topdown.html",
+        meta=SERVERS["topdown"],
+        cfg=cfg,
+        tracks=tracks,
+        vehicles=[{**v,
+                   "enabled": float(v.get("weight", 1) or 0) > 0,
+                   "drafting": by_vehicle.get(v.get("name")) or {}}
+                  for v in vehicles],
+        drafting=cfg.get("drafting") or {},
+        ai=cfg.get("ai") or {},
+        ai_skills=AI_SKILLS,
+        human_start_positions=HUMAN_START_POSITIONS,
+        camera_fields=CAMERA_FIELDS,
+        parts_tracks=sorted(parts),
+        track_guids=track_guids,
+        car_guids=car_guids,
+        track_options=sorted(track_guids),
+        vehicle_options=sorted(car_guids),
+        custom_aic_missing=_topdown_missing_aic(cfg),
+        **_upload_context("topdown"),
+        **_control_context("topdown"),
+    )
+
+
+def _topdown_missing_aic(cfg: dict):
+    """Warn when bots are set to a Custom group the server has no file for."""
+    skill = (cfg.get("ai") or {}).get("aiSkill")
+    if skill not in (10, 11, 12):
+        return None
+    name = f"custom{skill - 9}.aic"
+    if os.path.exists(os.path.join(TOPDOWN_AI_DIR, name)):
+        return None
+    return name
+
+
 # ---------------------------------------------------------------- routes
 @admin_bp.route("/")
 def index():
@@ -663,6 +1070,7 @@ def index():
         "casual_heat": url_for("admin.casual_heat"),
         "hotlapping": url_for("admin.hotlapping"),
         "events": url_for("admin.events"),
+        "topdown": url_for("admin.topdown"),
     }
     # who is admin where (shown to every admin; owner is implicit everywhere)
     overview = {s: [] for s in SERVERS}
@@ -1034,7 +1442,7 @@ def server_action(server, action):
 
 @admin_bp.route("/<server>/upload/<kind>", methods=["POST"])
 def upload(server, kind):
-    if server not in UPLOAD_SERVERS or kind not in UPLOAD_KINDS:
+    if kind not in SERVER_UPLOAD_KINDS.get(server, ()):
         abort(404)
     if not is_server_admin(g.get("current_steam_id"), server):
         abort(403)
@@ -1053,6 +1461,12 @@ def upload(server, kind):
             name = _safe_filename(f.filename)
             if not name.lower().endswith(spec["ext"]):
                 raise ValueError(f"{name}: must be a {spec['ext']} file")
+            if kind == "ai_line" and not AI_LINE_RE.match(name):
+                # The game finds a driving line purely by file name; a renamed
+                # file is silently ignored and the race just runs without bots.
+                raise ValueError(
+                    f"{name}: an AI line must keep its exported name "
+                    f"(ai-<track guid>-<car guid>.aid)")
             if spec["magic"]:
                 head = f.stream.read(len(spec["magic"]))
                 f.stream.seek(0)
@@ -1073,11 +1487,16 @@ def upload(server, kind):
             errors.append(str(exc))
 
     if saved:
+        if kind == "ai_line":
+            note = ("— the heat controller sees them from the next heat; "
+                    "restart the server if a race still runs without bots")
+        else:
+            note = ("— the running server scans files only at startup: loaded "
+                    "after the next restart (daily ~5:00, plus 20:45 before "
+                    "sessions) or hit “Restart server” to use them right away")
         flash(
-            f"Uploaded {len(saved)} {spec['label']} file(s): {', '.join(saved)} — "
-            "the running server scans files only at startup: loaded after the "
-            "next restart (daily ~5:00, plus 20:45 before sessions) or hit "
-            "“Restart server” to use them right away.",
+            f"Uploaded {len(saved)} {spec['label']} file(s): "
+            f"{', '.join(saved)} {note}.",
             "success",
         )
     for e in errors:

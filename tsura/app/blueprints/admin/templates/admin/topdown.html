@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+{% block title %}TopDown Admin — TSURA{% endblock %}
+
+{% macro number(name, value, step='1', min=None, max=None, placeholder='') %}
+<input class="form-control form-control-sm" type="number" name="{{ name }}"
+       step="{{ step }}" value="{{ value if value is not none else '' }}"
+       {% if min is not none %}min="{{ min }}"{% endif %}
+       {% if max is not none %}max="{{ max }}"{% endif %}
+       placeholder="{{ placeholder }}" />
+{% endmacro %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">Admin</a></li>
+    <li class="breadcrumb-item active">TopDown</li>
+  </ol>
+</nav>
+
+<h1 class="mb-2" style="color: {{ meta.color }};">TopDown</h1>
+<p class="text-secondary">
+  The controller reads this config before <em>every</em> heat, so a save takes
+  effect from the next heat — no restart needed. Each heat draws
+  {{ cfg.get('tracks_per_heat', 4) }} track(s) from the pool below and picks
+  <strong>one car per race</strong>. Uploaded files are the exception: the
+  server only scans those at startup.
+</p>
+
+{% if custom_aic_missing %}
+<div class="alert alert-warning">
+  Bot strength is set to a custom AI group, but
+  <code>{{ custom_aic_missing }}</code> is not on the server — the game falls
+  back to its own behaviour. Upload the group's file or pick one of the
+  built-in strengths.
+</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('admin.topdown') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+  <div class="card bg-dark border-secondary mb-4">
+    <div class="card-header">Heat</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="tracks_per_heat">Tracks per heat</label>
+          {{ number('tracks_per_heat', cfg.get('tracks_per_heat', 4), min=1, max=20) }}
+          <div class="form-text">Each track runs a qualifying and a race.</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="quali_laps">Qualifying laps</label>
+          {{ number('quali_laps', cfg.get('quali', {}).get('laps', 1), min=1, max=10) }}
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="countdown_seconds">Countdown (s)</label>
+          {{ number('countdown_seconds', cfg.get('countdown_seconds', 90), min=5, max=600) }}
+          <div class="form-text">From the first join to the heat start.</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="cooldown_seconds">Cooldown (s)</label>
+          {{ number('cooldown_seconds', cfg.get('cooldown_seconds', 60), min=5, max=600) }}
+          <div class="form-text">Break between two heats.</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="lap_bonus_max_pct">Default lap variance (%)</label>
+          {{ number('lap_bonus_max_pct', cfg.get('lap_bonus_max_pct', 20), min=0, max=100) }}
+          <div class="form-text">
+            Races run 0–x% <em>more</em> laps than configured, never fewer.
+            A track can override this below.
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="draft_distance">Draft distance</label>
+          {{ number('draft_distance', drafting.get('maxDraftingDistance', 35), min=0, max=1000) }}
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="draft_speed">Draft speed effect (%)</label>
+          {{ number('draft_speed', drafting.get('draftingSpeedEffect', 18), min=0, max=100) }}
+          <div class="form-text">Per car below, if a car needs its own.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card bg-dark border-secondary mb-4">
+    <div class="card-header">Bots</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="bot_fill">Grid size with bots</label>
+          {{ number('bot_fill', cfg.get('bot_fill', 14), min=0, max=20) }}
+          <div class="form-text">0 turns bots off entirely.</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="bots_off_from_humans">Bots off from … humans</label>
+          {{ number('bots_off_from_humans', cfg.get('bots_off_from_humans', 6), min=1, max=20) }}
+          <div class="form-text">Bots stand down once this many people race.</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="max_drivers">Maximum drivers</label>
+          {{ number('max_drivers', cfg.get('max_drivers', 20), min=1, max=20) }}
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="ai_skill">Bot strength</label>
+          <select class="form-select form-select-sm" name="ai_skill" id="ai_skill">
+            {% for value, label in ai_skills %}
+            <option value="{{ value }}" {% if ai.get('aiSkill', 3) == value %}selected{% endif %}>
+              {{ label }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">
+            Named bots only exist in custom groups; the built-in ones are
+            called “AI 1”, “AI 2”, …
+          </div>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label" for="human_start">Human start position</label>
+          <select class="form-select form-select-sm" name="human_start" id="human_start">
+            {% for value, label in human_start_positions %}
+            <option value="{{ value }}" {% if ai.get('humanStartPosition', 0) == value %}selected{% endif %}>
+              {{ label }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card bg-dark border-secondary mb-4">
+    <div class="card-header">Cars — one is drawn per race</div>
+    <div class="card-body">
+      <table class="table table-dark table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th style="width: 5rem;">In pool</th>
+            <th>Car</th>
+            <th style="width: 12rem;">GUID</th>
+            <th style="width: 8rem;">Draft distance</th>
+            <th style="width: 8rem;">Draft speed %</th>
+            <th style="width: 5rem;">Remove</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in vehicles %}
+          <tr>
+            <td class="text-center">
+              <input class="form-check-input" type="checkbox" value="1"
+                     name="v{{ loop.index0 }}_enabled" {% if v.enabled %}checked{% endif %} />
+            </td>
+            <td>
+              <input class="form-control form-control-sm car-name" list="known-vehicles"
+                     name="v{{ loop.index0 }}_name" value="{{ v.name }}"
+                     spellcheck="false" data-guid-target="v{{ loop.index0 }}_guid" />
+            </td>
+            <td>
+              <input class="form-control form-control-sm font-monospace"
+                     name="v{{ loop.index0 }}_guid" id="v{{ loop.index0 }}_guid"
+                     value="{{ v.guid }}" spellcheck="false" />
+            </td>
+            <td>{{ number('v%d_maxDraftingDistance'|format(loop.index0),
+                          v.drafting.get('maxDraftingDistance'), min=0, max=1000,
+                          placeholder=drafting.get('maxDraftingDistance', '')) }}</td>
+            <td>{{ number('v%d_draftingSpeedEffect'|format(loop.index0),
+                          v.drafting.get('draftingSpeedEffect'), min=0, max=100,
+                          placeholder=drafting.get('draftingSpeedEffect', '')) }}</td>
+            <td class="text-center">
+              <input class="form-check-input" type="checkbox" value="1"
+                     name="v{{ loop.index0 }}_delete" />
+            </td>
+          </tr>
+          {% endfor %}
+          {% for i in range(vehicles|length, vehicles|length + 2) %}
+          <tr>
+            <td class="text-center">
+              <input class="form-check-input" type="checkbox" value="1"
+                     name="v{{ i }}_enabled" checked />
+            </td>
+            <td>
+              <input class="form-control form-control-sm car-name" list="known-vehicles"
+                     name="v{{ i }}_name" placeholder="add a car…" spellcheck="false"
+                     data-guid-target="v{{ i }}_guid" />
+            </td>
+            <td>
+              <input class="form-control form-control-sm font-monospace"
+                     name="v{{ i }}_guid" id="v{{ i }}_guid" spellcheck="false" />
+            </td>
+            <td>{{ number('v%d_maxDraftingDistance'|format(i), none, min=0, max=1000) }}</td>
+            <td>{{ number('v%d_draftingSpeedEffect'|format(i), none, min=0, max=100) }}</td>
+            <td></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="form-text mt-2">
+        Empty draft fields use the shared values above. Picking a car from the
+        list fills its GUID in automatically — that is what the game matches on.
+      </div>
+    </div>
+  </div>
+
+  <div class="card bg-dark border-secondary mb-4">
+    <div class="card-header">Tracks</div>
+    <div class="card-body">
+      {% for t in tracks %}
+      <div class="border border-secondary rounded p-3 mb-3">
+        <div class="row g-2 align-items-end">
+          <div class="col-6 col-md-1 text-center">
+            <label class="form-label small">In pool</label>
+            <div>
+              <input class="form-check-input" type="checkbox" value="1"
+                     name="t{{ loop.index0 }}_enabled" {% if t.enabled %}checked{% endif %} />
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label small">Track</label>
+            <input class="form-control form-control-sm track-name" list="known-tracks"
+                   name="t{{ loop.index0 }}_name" value="{{ t.name }}"
+                   spellcheck="false" data-guid-target="t{{ loop.index0 }}_guid" />
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-label small">GUID</label>
+            <input class="form-control form-control-sm font-monospace"
+                   name="t{{ loop.index0 }}_guid" id="t{{ loop.index0 }}_guid"
+                   value="{{ t.guid }}" spellcheck="false" />
+          </div>
+          <div class="col-4 col-md-1">
+            <label class="form-label small">Laps</label>
+            {{ number('t%d_laps'|format(loop.index0), t.laps, min=1, max=200) }}
+          </div>
+          <div class="col-4 col-md-2">
+            <label class="form-label small">Variance %</label>
+            {{ number('t%d_variance'|format(loop.index0), t.get('lap_bonus_pct'),
+                      min=0, max=100, placeholder=cfg.get('lap_bonus_max_pct', 20)) }}
+          </div>
+          <div class="col-4 col-md-1 text-center">
+            <label class="form-label small">Remove</label>
+            <div>
+              <input class="form-check-input" type="checkbox" value="1"
+                     name="t{{ loop.index0 }}_delete" />
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-2">
+          <a class="small" data-bs-toggle="collapse" href="#cam{{ loop.index0 }}"
+             role="button">Camera &amp; bots ▾</a>
+          <span class="small text-secondary ms-2">
+            camera: {{ t.camera_source }}{% if not t.has_export %} — no session
+            export for this track{% endif %}
+          </span>
+          {% for car, has_line in t.bots.items() %}
+          <span class="badge {{ 'bg-success' if has_line else 'bg-secondary' }} ms-1">
+            {{ car }}: {{ 'AI lines' if has_line else 'no AI lines' }}
+          </span>
+          {% endfor %}
+        </div>
+
+        <div class="collapse mt-3" id="cam{{ loop.index0 }}">
+          <div class="row g-2">
+            {% set outer = loop.index0 %}
+            {% for key, label, step in camera_fields %}
+            <div class="col-6 col-md-2">
+              <label class="form-label small">{{ label }}</label>
+              {{ number('t%d_cam_%s'|format(outer, key),
+                        t.camera.get(key)|round(4) if t.camera.get(key) is not none else none,
+                        step=step) }}
+            </div>
+            {% endfor %}
+            <div class="col-12 col-md-3">
+              <label class="form-label small">Take camera from</label>
+              <select class="form-select form-select-sm"
+                      name="t{{ loop.index0 }}_camera_from">
+                <option value="">— none —</option>
+                {% for other in parts_tracks %}
+                <option value="{{ other }}" {% if t.get('camera_from') == other %}selected{% endif %}>
+                  {{ other }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-3 d-flex align-items-end">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="1"
+                       id="t{{ loop.index0 }}_camera_reset"
+                       name="t{{ loop.index0 }}_camera_reset" />
+                <label class="form-check-label small" for="t{{ loop.index0 }}_camera_reset">
+                  Reset to the exported camera
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+
+      {% set base = tracks|length %}
+      {% for i in range(base, base + 2) %}
+      <div class="border border-secondary border-opacity-50 rounded p-3 mb-3">
+        <div class="row g-2 align-items-end">
+          <div class="col-6 col-md-1 text-center">
+            <label class="form-label small">In pool</label>
+            <div>
+              <input class="form-check-input" type="checkbox" value="1"
+                     name="t{{ i }}_enabled" checked />
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label small">Track</label>
+            <input class="form-control form-control-sm track-name" list="known-tracks"
+                   name="t{{ i }}_name" placeholder="add a track…" spellcheck="false"
+                   data-guid-target="t{{ i }}_guid" />
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-label small">GUID</label>
+            <input class="form-control form-control-sm font-monospace"
+                   name="t{{ i }}_guid" id="t{{ i }}_guid" spellcheck="false" />
+          </div>
+          <div class="col-4 col-md-1">
+            <label class="form-label small">Laps</label>
+            {{ number('t%d_laps'|format(i), none, min=1, max=200, placeholder='8') }}
+          </div>
+          <div class="col-4 col-md-2">
+            <label class="form-label small">Variance %</label>
+            {{ number('t%d_variance'|format(i), none, min=0, max=100,
+                      placeholder=cfg.get('lap_bonus_max_pct', 20)) }}
+          </div>
+          <div class="col-12 col-md-3 mt-2">
+            <label class="form-label small">Take camera from</label>
+            <select class="form-select form-select-sm" name="t{{ i }}_camera_from">
+              <option value="">— default camera —</option>
+              {% for other in parts_tracks %}
+              <option value="{{ other }}">{{ other }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">
+              A new track has no exported camera; borrow one or the default is
+              used and can be aimed here afterwards.
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="mt-4 d-flex align-items-center gap-3 flex-wrap">
+    <button type="submit" class="btn btn-warm-red">Save</button>
+    <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary">Back</a>
+    <div class="form-check ms-2">
+      <input class="form-check-input" type="checkbox" id="allow_new" name="allow_new" value="1" />
+      <label class="form-check-label text-secondary" for="allow_new">
+        Allow new names — skip the check whether track/car are known
+        (for freshly uploaded content)
+      </label>
+    </div>
+  </div>
+</form>
+
+{% include "admin/_uploads.html" %}
+{% include "admin/_server_control.html" %}
+
+<datalist id="known-tracks">
+  {% for t in track_options %}<option value="{{ t }}"></option>{% endfor %}
+</datalist>
+<datalist id="known-vehicles">
+  {% for v in vehicle_options %}<option value="{{ v }}"></option>{% endfor %}
+</datalist>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // The game matches tracks and cars by GUID, not by name. Every name the
+  // servers have ever raced comes with its GUID, so picking a name fills it in
+  // and nobody has to know these strings by heart.
+  const TRACK_GUIDS = {{ track_guids|tojson }};
+  const CAR_GUIDS = {{ car_guids|tojson }};
+  function wire(selector, guids) {
+    document.querySelectorAll(selector).forEach((input) => {
+      input.addEventListener("change", () => {
+        const target = document.getElementById(input.dataset.guidTarget);
+        const guid = guids[input.value.trim()];
+        if (target && guid && !target.value.trim()) target.value = guid;
+      });
+    });
+  }
+  wire(".track-name", TRACK_GUIDS);
+  wire(".car-name", CAR_GUIDS);
+</script>
+{% endblock %}
