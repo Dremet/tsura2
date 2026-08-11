@@ -63,12 +63,19 @@
                     {% if r.driver_flag %}
                     <span class="fi fi-{{ r.driver_flag }} me-1"></span>
                     {% endif %}
+                    {% if r.is_ai %}
+                    <span class="{% if r.position == 1 %}text-warning fw-bold{% else %}text-secondary{% endif %}">
+                        {{ r.driver_name }}
+                    </span>
+                    <span class="badge bg-dark border border-secondary ms-1 fw-normal">BOT</span>
+                    {% else %}
                     <a href="{{ url_for('main.driver_profile', driver_id=r.driver_id) }}"
                        class="{% if r.position == 1 %}text-warning fw-bold{% else %}text-white{% endif %}">
                         {{ r.driver_name }}
                     </a>
                     {% if r.display_tag %}
                     <span class="badge bg-secondary ms-1 fw-normal">{{ r.display_tag }}</span>
+                    {% endif %}
                     {% endif %}
                 </td>
                 <td class="text-muted small">{{ r.vehicle or '—' }}</td>

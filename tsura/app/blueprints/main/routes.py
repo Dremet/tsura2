@@ -145,7 +145,13 @@ RACE_SERVERS = {
     "tripleheat": "Triple Heat",
     "casual_heat": "Casual Heat",
     "career": "Career",
+    "topdown": "Topdown",
 }
+
+# Servers whose grids are small by design, so the "at least 4 humans" filter
+# would hide everything: career runs a small championship field, topdown fills
+# its heats with bots and often has a single human on track.
+NO_MIN_HUMANS = ("career", "topdown")
 
 
 def _last_day_summary(cur, server: str) -> list:
@@ -254,6 +260,7 @@ def index():
         summary_heats  = _last_day_summary(cur, "tripleheat")
         summary_casual = _last_day_summary(cur, "casual_heat")
         summary_career = _last_day_summary(cur, "career")
+        summary_topdown = _last_day_summary(cur, "topdown")
 
         # ELO top list (same source as /elo_heats)
         cur.execute(
@@ -301,6 +308,7 @@ def index():
         summary_heats=summary_heats,
         summary_casual=summary_casual,
         summary_career=summary_career,
+        summary_topdown=summary_topdown,
     )
 
 
@@ -525,8 +533,8 @@ def elo_heats():
 def races():
     """Race results, newest first, optionally filtered by ?server=.
 
-    Events/heat servers only list races with ≥4 humans; the career
-    server has no minimum (small championship grids are the norm there).
+    Events/heat servers only list races with ≥4 humans; career and topdown
+    have no minimum (see NO_MIN_HUMANS).
     """
     server = request.args.get("server")
     if server not in RACE_SERVERS:
@@ -547,11 +555,12 @@ def races():
               FROM mart.v_race_results
              WHERE server = ANY(%(servers)s)
           GROUP BY session_id, utc_start_time, server, track_name
-            HAVING MIN(human_participant_count) >= 4 OR server = 'career'
+            HAVING MIN(human_participant_count) >= 4
+                    OR server = ANY(%(no_min)s)
           ORDER BY utc_start_time DESC
              LIMIT 200;
             """,
-            {"servers": servers},
+            {"servers": servers, "no_min": list(NO_MIN_HUMANS)},
         )
         race_list = cur.fetchall()
 
@@ -655,6 +664,8 @@ def race_detail(session_id: str):
                 "pos_diff":           pos_diff,
                 "driver_id":          row["steam_id"],
                 "driver_name":        row["driver_name"],
+                # Bots have no Steam ID and therefore no profile to link to.
+                "is_ai":              row["is_ai"],
                 "driver_flag":        _flag_code(row["driver_flag"]),
                 "display_tag":        row["display_tag"],
                 "vehicle":            row["vehicle_name"],
