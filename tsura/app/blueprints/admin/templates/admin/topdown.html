@@ -70,6 +70,15 @@
           </div>
         </div>
         <div class="col-6 col-md-3">
+          <label class="form-label" for="laps_override">Test phase: laps per race</label>
+          {{ number('laps_override', cfg.get('laps_override', 0), min=0, max=200) }}
+          <div class="form-text">
+            Forces every race to this distance, whatever a track says.
+            <strong>0 turns it off</strong> and each track's own lap count
+            applies again — the real numbers stay untouched meanwhile.
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
           <label class="form-label" for="draft_distance">Draft distance</label>
           {{ number('draft_distance', drafting.get('maxDraftingDistance', 35), min=0, max=1000) }}
         </div>
@@ -139,6 +148,7 @@
             <th style="width: 12rem;">GUID</th>
             <th style="width: 8rem;">Draft distance</th>
             <th style="width: 8rem;">Draft speed %</th>
+            <th style="width: 10rem;">Bot strength</th>
             <th style="width: 5rem;">Remove</th>
           </tr>
         </thead>
@@ -165,6 +175,17 @@
             <td>{{ number('v%d_draftingSpeedEffect'|format(loop.index0),
                           v.drafting.get('draftingSpeedEffect'), min=0, max=100,
                           placeholder=drafting.get('draftingSpeedEffect', '')) }}</td>
+            <td>
+              <select class="form-select form-select-sm"
+                      name="v{{ loop.index0 }}_ai_skill">
+                <option value="">— as above —</option>
+                {% for value, label in ai_skills %}
+                <option value="{{ value }}" {% if v.ai_skill == value %}selected{% endif %}>
+                  {{ label }}
+                </option>
+                {% endfor %}
+              </select>
+            </td>
             <td class="text-center">
               <input class="form-check-input" type="checkbox" value="1"
                      name="v{{ loop.index0 }}_delete" />
@@ -188,14 +209,24 @@
             </td>
             <td>{{ number('v%d_maxDraftingDistance'|format(i), none, min=0, max=1000) }}</td>
             <td>{{ number('v%d_draftingSpeedEffect'|format(i), none, min=0, max=100) }}</td>
+            <td>
+              <select class="form-select form-select-sm" name="v{{ i }}_ai_skill">
+                <option value="">— as above —</option>
+                {% for value, label in ai_skills %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </td>
             <td></td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
       <div class="form-text mt-2">
-        Empty draft fields use the shared values above. Picking a car from the
-        list fills its GUID in automatically — that is what the game matches on.
+        Empty draft fields and “as above” use the shared values from the cards
+        above — set one here only where a car should differ. Picking a car from
+        the list fills its GUID in automatically; that is what the game matches
+        on.
       </div>
     </div>
   </div>

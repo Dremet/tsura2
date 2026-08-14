@@ -889,13 +889,33 @@ def _topdown_tracks_from_form(old_tracks: dict) -> list:
                          "tracks cannot start.")
     if not any(t["weight"] > 0 for t in tracks):
         raise ValueError("At least one track must stay enabled.")
+    _reject_duplicates([t["name"] for t in tracks], "track")
     return tracks
 
 
+def _reject_duplicates(names, what: str) -> None:
+    """Two rows with the same name make the per-name settings ambiguous."""
+    seen, dupes = set(), []
+    for name in names:
+        key = name.lower()
+        if key in seen and name not in dupes:
+            dupes.append(name)
+        seen.add(key)
+    if dupes:
+        raise ValueError(
+            f"The same {what} is listed twice: {', '.join(dupes)}. "
+            f"Remove one of the rows.")
+
+
 def _topdown_vehicles_from_form(cfg: dict) -> tuple:
-    """The car pool plus the per-car drafting block."""
-    vehicles, drafting_by_vehicle = [], {}
+    """The car pool plus the per-car drafting and bot-strength blocks.
+
+    Both the tow and the bots' pace belong to the car rather than to the heat,
+    so each is stored only where it differs from the shared value.
+    """
+    vehicles, drafting_by_vehicle, ai_by_vehicle = [], {}, {}
     base = cfg.get("drafting") or {}
+    shared_skill = (cfg.get("ai") or {}).get("aiSkill")
     for row in _rows_from_form("v"):
         name = row["name"]
         guid = row.get("guid", "").strip()
@@ -914,11 +934,15 @@ def _topdown_vehicles_from_form(cfg: dict) -> tuple:
             overrides[key] = value
         if overrides:
             drafting_by_vehicle[name] = overrides
+        skill = row.get("ai_skill", "").strip()
+        if skill and int(skill) != shared_skill:
+            ai_by_vehicle[name] = {"aiSkill": int(skill)}
     if not vehicles:
         raise ValueError("At least one car is needed.")
     if not any(v["weight"] > 0 for v in vehicles):
         raise ValueError("At least one car must stay enabled.")
-    return vehicles, drafting_by_vehicle
+    _reject_duplicates([v["name"] for v in vehicles], "car")
+    return vehicles, drafting_by_vehicle, ai_by_vehicle
 
 
 @admin_bp.route("/topdown", methods=["GET", "POST"])
@@ -942,6 +966,9 @@ def topdown():
                 "tracks_per_heat", "Tracks per heat", 1, 20)
             cfg["lap_bonus_max_pct"] = _form_int(
                 "lap_bonus_max_pct", "Default lap variance", 0, 100)
+            # 0 = off, and then every track's own lap count applies again.
+            cfg["laps_override"] = _form_int(
+                "laps_override", "Test-phase lap count", 0, 200)
             cfg["countdown_seconds"] = _form_int(
                 "countdown_seconds", "Countdown", 5, 600)
             cfg["cooldown_seconds"] = _form_int(
@@ -970,9 +997,10 @@ def topdown():
             # Tracks and cars last: they raise the most specific errors, and a
             # rejected save must leave the whole config untouched.
             cfg["tracks"] = _topdown_tracks_from_form(old_tracks)
-            vehicles, by_vehicle = _topdown_vehicles_from_form(cfg)
+            vehicles, by_vehicle, ai_by_vehicle = _topdown_vehicles_from_form(cfg)
             cfg["vehicles"] = vehicles
             cfg["drafting_by_vehicle"] = by_vehicle
+            cfg["ai_by_vehicle"] = ai_by_vehicle
             # Superseded by the pool; leaving them would be a second truth.
             cfg.pop("vehicle", None)
             cfg.pop("vehicle_guid", None)
@@ -995,6 +1023,7 @@ def topdown():
         vehicles = [{"name": cfg["vehicle"], "guid": cfg.get("vehicle_guid", ""),
                      "weight": 1.0}]
     by_vehicle = cfg.get("drafting_by_vehicle") or {}
+    ai_by_vehicle = cfg.get("ai_by_vehicle") or {}
 
     tracks = []
     for t in cfg.get("tracks") or []:
@@ -1029,7 +1058,9 @@ def topdown():
         tracks=tracks,
         vehicles=[{**v,
                    "enabled": float(v.get("weight", 1) or 0) > 0,
-                   "drafting": by_vehicle.get(v.get("name")) or {}}
+                   "drafting": by_vehicle.get(v.get("name")) or {},
+                   "ai_skill": (ai_by_vehicle.get(v.get("name")) or {}).get(
+                       "aiSkill")}
                   for v in vehicles],
         drafting=cfg.get("drafting") or {},
         ai=cfg.get("ai") or {},
