@@ -118,13 +118,10 @@ def _is_admin(steam_id) -> bool:
 
 
 def _is_participant(steam_id) -> bool:
-    """During the beta, only allow-listed Steam IDs may join / tune."""
-    if not steam_id:
-        return False
-    with _cur() as cur:
-        cur.execute("SELECT 1 FROM career.allowed_participants WHERE steam_id = %s",
-                    (steam_id,))
-        return cur.fetchone() is not None
+    """Open enrollment (since 2026-08-28): every logged-in Steam user may
+    join / tune. The career.allowed_participants allowlist is kept for the
+    admin page but no longer gates anything."""
+    return bool(steam_id)
 
 
 def _admin_required(f):
@@ -413,7 +410,7 @@ def join():
         abort(403)
     sid = g.current_steam_id
     if not _is_participant(sid):
-        flash("TSU Career is invite-only during the beta. Ask an admin to add you.",
+        flash("Please log in with Steam to join TSU Career.",
               "warning")
         return redirect(url_for("career.home"))
     conn = db_pool.get_conn()
