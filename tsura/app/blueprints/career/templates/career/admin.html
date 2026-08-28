@@ -99,8 +99,59 @@
   </table>
 </div>
 
+<h5 class="mt-4">Enrolled drivers</h5>
+<p class="text-secondary small">Everyone who clicked "Join" on the career page, per season (newest season first).</p>
+{% set _ns = namespace(season=None, i=0) %}
+<div class="table-responsive">
+  <table class="table table-dark table-sm align-middle">
+    <thead><tr><th>#</th><th>Driver</th><th>SteamID64</th><th>Joined</th><th>Upgrades bought</th></tr></thead>
+    <tbody>
+      {% for e in enrolled %}
+      {% if e.season_id != _ns.season %}
+        {% set _ns.season = e.season_id %}
+        {% set _ns.i = 0 %}
+        <tr class="table-secondary"><td colspan="5" class="fw-bold text-dark">
+          {{ e.season_name }} <span class="badge bg-dark ms-1">{{ e.season_status }}</span>
+          <span class="text-muted small ms-2">{{ enrolled | selectattr('season_id', 'equalto', e.season_id) | list | length }} drivers</span>
+        </td></tr>
+      {% endif %}
+      {% set _ns.i = _ns.i + 1 %}
+      <tr>
+        <td class="text-secondary">{{ _ns.i }}</td>
+        <td>{% if e.driver_name %}{{ e.driver_name }}{% else %}<span class="text-secondary">unknown (never raced on a TSU server yet)</span>{% endif %}</td>
+        <td><code>{{ e.steam_id }}</code></td>
+        <td class="text-secondary small">{{ e.joined_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>{{ e.upgrades }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-secondary">Nobody has joined yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h5 class="mt-4">Track pool</h5>
+<p class="text-secondary small">
+  Tracks the Monday session picks from ({{ track_pool.per_session or '?' }} per session, equal odds).
+  Read-only — edit <code>{{ track_pool.source }}</code> on the Career server to change it.
+</p>
+{% if track_pool.error %}
+  <div class="alert alert-warning small">Could not read the track list: {{ track_pool.error }}</div>
+{% else %}
+<div class="card bg-dark border-secondary mb-3"><div class="card-body py-2">
+  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-1 small">
+    {% for t in track_pool.tracks %}
+    <div class="col"><span class="fi fi-{{ track_flag(t.name) }} me-1"></span>{{ t.name }}{% if t.weight != 1 %} <span class="text-secondary">&times;{{ t.weight }}</span>{% endif %}</div>
+    {% else %}
+    <div class="col text-secondary">No tracks found in the file.</div>
+    {% endfor %}
+  </div>
+  <div class="text-secondary small mt-2">{{ track_pool.tracks | length }} tracks</div>
+</div></div>
+{% endif %}
+
 <h5 class="mt-4">Beta participants</h5>
-<p class="text-secondary small">During the beta only these Steam IDs can join and see the garage.</p>
+<p class="text-secondary small">Informational only — enrollment is open, this allowlist no longer gates anything.</p>
 <div class="card bg-dark border-secondary mb-3">
   <div class="card-body">
     <form method="post" action="{{ url_for('career.admin_add_participant') }}" class="row g-2 align-items-end">

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hmac
 import io
 import os
+import re
 import sys
 import tempfile
 from datetime import date
@@ -542,6 +543,30 @@ def undo():
     return redirect(url_for("career.garage"))
 
 
+
+# Career track pool lives in the game server's autorun generator (read-only here).
+CAREER_AUTORUN = os.environ.get(
+    "CAREER_AUTORUN_PATH", "/home/career/server/config/Scripts/create_autorun.py")
+
+
+def _track_pool() -> dict:
+    """Parse TRACKS/NUMBER_TRACKS from create_autorun.py. Fail-soft."""
+    out = {"tracks": [], "per_session": None, "source": CAREER_AUTORUN, "error": None}
+    try:
+        with open(CAREER_AUTORUN, encoding="utf-8") as fh:
+            src = fh.read()
+    except OSError as e:
+        out["error"] = str(e)
+        return out
+    m = re.search(r"^NUMBER_TRACKS\s*=\s*(\d+)", src, re.M)
+    if m:
+        out["per_session"] = int(m.group(1))
+    m = re.search(r"^TRACKS\s*=\s*\[(.*?)^\]", src, re.M | re.S)
+    if m:
+        out["tracks"] = [{"name": n, "weight": int(w)} for n, w in
+                         re.findall(r"\(\s*'([^']+)'\s*,\s*(\d+)\s*\)", m.group(1))]
+    return out
+
 # ------------------------------------------------------------------- admin
 @career_bp.route("/admin")
 @_admin_required
@@ -557,6 +582,18 @@ def admin():
             s["enrolled"] = cur.fetchone()["n"]
         cur.execute("SELECT * FROM mart.v_career_participants ORDER BY added_at DESC")
         participants = cur.fetchall()
+        cur.execute(
+            "SELECT e.season_id, s.name AS season_name, s.status AS season_status, "
+            "       e.steam_id, e.joined_at, "
+            "       (SELECT dc.driver_name FROM mart.v_career_driver_cars dc "
+            "         WHERE dc.season_id = e.season_id AND dc.steam_id = e.steam_id "
+            "         LIMIT 1) AS driver_name, "
+            "       (SELECT COUNT(*) FROM career.driver_upgrades du "
+            "         WHERE du.season_id = e.season_id AND du.steam_id = e.steam_id "
+            "           AND du.tier > 0) AS upgrades "
+            "FROM career.enrollments e JOIN career.seasons s ON s.id = e.season_id "
+            "ORDER BY s.id DESC, e.joined_at ASC")
+        enrolled = cur.fetchall()
         cur.execute(
             "SELECT p.id, p.season_id, p.steam_id, p.points, p.reason, "
             "       p.created_at, s.name AS season_name, "
@@ -595,6 +632,7 @@ def admin():
     return render_template("career/admin.html", seasons=seasons, axes=AXES,
                            build_requests=build_requests, sdef=sdef,
                            axis_labels=AXIS_LABELS, participants=participants,
+                           enrolled=enrolled, track_pool=_track_pool(),
                            penalties=penalties, pen_drivers=pen_drivers,
                            pen_season=pen_season)
 
