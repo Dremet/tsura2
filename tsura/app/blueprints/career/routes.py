@@ -73,9 +73,7 @@ AXIS_DESCRIPTIONS = {
                          "settled over bumps, curbs and jumps.",
     "locking_start_time": "How long you can brake at full force before the "
                           "wheels lock up and start smoking.",
-    "oversteering_braking": "Extra oversteer while braking \u2014 upgrades "
-                            "bring it towards zero for a calmer rear end on "
-                            "corner entry.",
+    "oversteering_braking": "Extra oversteer while braking.",
 }
 
 # Server-side vehicle tools (deployed from tsura_server_scripts/career/);
