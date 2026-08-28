@@ -267,8 +267,22 @@ def upgrades():
                 r["grade"], r["gcolor"] = gr, col
                 d["axes"][r["axis"]] = r
                 d["spent"] = d.get("spent", 0) + r["tier"] * (_cfg.get("cost_per_tier") or 0)
+            # enrolled drivers with no purchase yet (all-stock cars) — show them too
+            cur.execute(
+                "SELECT e.steam_id, "
+                "       (SELECT dc.driver_name FROM mart.v_career_driver_cars dc "
+                "         WHERE dc.season_id = e.season_id AND dc.steam_id = e.steam_id "
+                "         LIMIT 1) AS driver_name "
+                "FROM career.enrollments e WHERE e.season_id = %s", (season["id"],))
+            for r in cur.fetchall():
+                per_driver.setdefault(
+                    r["steam_id"],
+                    {"driver_name": r["driver_name"] or str(r["steam_id"]),
+                     "steam_id": r["steam_id"],
+                     "flag_code": flag_by_sid.get(r["steam_id"], ""),
+                     "axes": {}, "spent": 0})
             table = sorted(per_driver.values(),
-                           key=lambda d: d.get("spent", 0), reverse=True)
+                           key=lambda d: (-d.get("spent", 0), d["driver_name"].lower()))
     return render_template("career/upgrades.html", seasons=seasons, season=season,
                            table=table, axes=AXES, axis_labels=AXIS_LABELS,
                            axes_cfg=axes_cfg)
