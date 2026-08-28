@@ -195,6 +195,7 @@ def home():
                                       if str(o["steam_id"]) == str(sid)), None)
     return render_template("career/home.html", season=season,
                            balance=balance, enrolled=enrolled,
+                           track_pool=_track_pool(),
                            challenge=challenge, day_objs=day_objs,
                            is_admin=_is_admin(g.get("current_steam_id")),
                            is_participant=_is_participant(g.get("current_steam_id")))

@@ -114,5 +114,17 @@
 {% endif %}
 
   <a href="{{ url_for('career.standings') }}" class="btn btn-outline-light">Standings →</a>
+
+{% if track_pool.tracks %}
+  <h4 class="mt-5">Track pool <span class="text-secondary fs-6">— {{ track_pool.per_session or 3 }} random tracks per race night, equal odds</span></h4>
+  <div class="card bg-dark border-secondary mb-3"><div class="card-body py-2">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-1 small">
+      {% for t in track_pool.tracks %}
+      <div class="col"><span class="fi fi-{{ track_flag(t.name) }} me-1"></span>{{ t.name }}</div>
+      {% endfor %}
+    </div>
+    <div class="text-secondary small mt-2">{{ track_pool.tracks | length }} tracks</div>
+  </div></div>
+{% endif %}
 {% endif %}
 {% endblock %}
