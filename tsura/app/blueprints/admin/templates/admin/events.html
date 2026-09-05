@@ -108,6 +108,28 @@
             <option value="">— leave —</option><option value="1">On</option><option value="0">Off</option>
           </select>
         </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="adjust_collision">Adjust vehicle collision</label>
+          <select class="form-select" id="adjust_collision" name="adjust_collision">
+            <option value="">— leave —</option><option value="1">On</option><option value="0">Off</option>
+          </select>
+          <div class="form-text">Master switch for the three values below.</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="collisionSteadiness">Collision steadiness</label>
+          <input class="form-control" type="number" step="any" min="0" max="100"
+                 id="collisionSteadiness" name="collisionSteadiness" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="collisionExtraStability">Collision extra stability</label>
+          <input class="form-control" type="number" step="any" min="0" max="100"
+                 id="collisionExtraStability" name="collisionExtraStability" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="stuckAvoidance">Stuck avoidance</label>
+          <input class="form-control" type="number" step="any" min="0" max="100"
+                 id="stuckAvoidance" name="stuckAvoidance" />
+        </div>
         <div class="col-12">
           <label class="form-label" for="points">Points (P1 first, comma-separated)</label>
           <input class="form-control font-monospace" id="points" name="points"

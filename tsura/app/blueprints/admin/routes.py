@@ -464,6 +464,68 @@ def _parse_param_overrides(prefix: str, defaults: dict, what: str) -> dict:
     return out
 
 
+# ------------------------------------------------- vehicle collision
+# One global block per server, applied to every car. The three values only
+# bite while physics.adjustVehicleCollisionSettings is on, so the panel keeps
+# them behind a single "enabled" switch and the session scripts always emit
+# the master switch with them.
+COLLISION_FIELDS = [
+    ("collisionSteadiness", "Collision steadiness",
+     "How hard a car resists being knocked off line."),
+    ("collisionExtraStability", "Collision extra stability",
+     "Extra damping on top of the steadiness."),
+    ("stuckAvoidance", "Stuck avoidance",
+     "How eagerly the game untangles cars that jam into each other."),
+]
+
+
+def _collision_defaults(server: str) -> dict:
+    """The server's own physics values, used as form placeholders."""
+    wanted = {key for key, _label, _help in COLLISION_FIELDS}
+    return {path.split(".")[-1]: default
+            for _sec, fields in _event_param_specs(server)
+            for path, default, _disp in fields
+            if path.startswith("physics.") and path.split(".")[-1] in wanted}
+
+
+def _collision_from_form(old: dict) -> dict:
+    """The posted collision block, or {} when the box is unticked.
+
+    An unticked box still stores a disabled block, because the scripts need
+    to actively switch the game's own collision handling back on.
+    """
+    enabled = request.form.get("collision_enabled") == "1"
+    block = {"enabled": enabled}
+    for key, label, _help in COLLISION_FIELDS:
+        raw = request.form.get(f"collision_{key}", "").strip()
+        if not raw:
+            if not enabled:
+                continue
+            raise ValueError(f"{label} is required while the collision "
+                             f"settings are switched on")
+        block[key] = _form_num(f"collision_{key}", label, 0, 100)
+    # A server that never used the block keeps a clean config: only store a
+    # disabled block once there is something to switch back off.
+    return {} if not enabled and not old else block
+
+
+def _store_collision(cfg: dict) -> None:
+    """Write the posted block into `cfg`, or drop the key when unused."""
+    block = _collision_from_form(cfg.get("collision"))
+    if block:
+        cfg["collision"] = block
+    else:
+        cfg.pop("collision", None)
+
+
+def _collision_context(server: str, cfg: dict) -> dict:
+    return {
+        "collision_fields": COLLISION_FIELDS,
+        "collision": cfg.get("collision") or {},
+        "collision_defaults": _collision_defaults(server),
+    }
+
+
 # ---------------------------------------------------------------- uploads
 def _safe_filename(raw: str) -> str:
     """Basename only; game files legitimately contain spaces/umlauts/'."""
@@ -993,6 +1055,7 @@ def topdown():
             ai["humanStartPosition"] = _form_int(
                 "human_start", "Human start position", 0, 2)
             cfg["ai"] = ai
+            _store_collision(cfg)
 
             # Tracks and cars last: they raise the most specific errors, and a
             # rejected save must leave the whole config untouched.
@@ -1073,6 +1136,7 @@ def topdown():
         track_options=sorted(track_guids),
         vehicle_options=sorted(car_guids),
         custom_aic_missing=_topdown_missing_aic(cfg),
+        **_collision_context("topdown", cfg),
         **_upload_context("topdown"),
         **_control_context("topdown"),
     )
@@ -1168,6 +1232,7 @@ def _heat_panel(server: str):
             race["params"] = _parse_param_overrides(
                 "rp__", _column_defaults(server, base, "race"), "Race")
             cfg["race"] = race
+            _store_collision(cfg)
             _save_config(server, cfg)
             flash(f"{meta['label']} config saved — used at the next session start.",
                   "success")
@@ -1202,6 +1267,7 @@ def _heat_panel(server: str):
         randomized_paths=RANDOMIZED_PATHS.get(server, set()),
         quali_params=cfg.get("quali", {}).get("params", {}),
         race_params=cfg.get("race", {}).get("params", {}),
+        **_collision_context(server, cfg),
         **_upload_context(server),
         **_control_context(server),
     )
@@ -1247,6 +1313,7 @@ def hotlapping():
                 "hotlap_behind_distance", "Start-behind distance", 0, 100000)
             cfg["events_per_session"] = _form_int(
                 "events_per_session", "Events per session", 1, 20)
+            _store_collision(cfg)
             _save_config("hotlapping", cfg)
             flash("Hotlapping config saved — the server applies it within "
                   "about a minute.", "success")
@@ -1265,6 +1332,7 @@ def hotlapping():
         pending=(applied != cfg),
         track_options=_known_tracks(),
         vehicle_options=_known_vehicles(),
+        **_collision_context("hotlapping", cfg),
         **_upload_context("hotlapping"),
         **_control_context("hotlapping"),
     )
@@ -1302,6 +1370,10 @@ EVENT_PUSH_FIELDS = [
     ("compound2_endurance", "/tireWear.compound2Endurance", "int"),
     ("collision_damage_on", "/damage.collisionDamageOn", "bool"),
     ("drafting_on", "/drafting.draftingOn", "bool"),
+    ("adjust_collision", "/physics.adjustVehicleCollisionSettings", "bool"),
+    ("collisionSteadiness", "/physics.collisionSteadiness", "num"),
+    ("collisionExtraStability", "/physics.collisionExtraStability", "num"),
+    ("stuckAvoidance", "/physics.stuckAvoidance", "num"),
 ]
 
 

@@ -1,0 +1,37 @@
+{# Global vehicle collision settings. Lives INSIDE the panel's main form.
+   Needs: collision_fields, collision, collision_defaults #}
+<div class="card bg-dark border-secondary mt-4">
+  <div class="card-header">Vehicle collision</div>
+  <div class="card-body">
+    <div class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" value="1"
+             id="collision_enabled" name="collision_enabled"
+             {% if collision.get('enabled') %}checked{% endif %} />
+      <label class="form-check-label" for="collision_enabled">
+        Adjust vehicle collision settings
+      </label>
+      <div class="form-text">
+        Applies to <strong>every car</strong> on this server. While this is
+        off the game uses its own collision behaviour and the three values
+        below are ignored.
+      </div>
+    </div>
+    <div class="row g-3">
+      {% for key, label, help in collision_fields %}
+      <div class="col-12 col-md-4">
+        <label class="form-label" for="collision_{{ key }}">{{ label }}</label>
+        <input class="form-control" type="number" step="any" min="0" max="100"
+               id="collision_{{ key }}" name="collision_{{ key }}"
+               value="{{ collision.get(key, '') }}"
+               placeholder="{{ collision_defaults.get(key, '') }}" />
+        <div class="form-text">
+          {{ help }}
+          {% if collision_defaults.get(key) is not none %}
+          Server currently boots with {{ collision_defaults[key] }}.
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
