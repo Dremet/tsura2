@@ -26,6 +26,7 @@ from flask import (abort, current_app, flash, g, redirect, render_template,
                    request, url_for)
 
 from . import admin_bp
+from .content_files import read_content_file
 from ...extensions import db_pool, make_csrf_token
 
 # The only user who may manage admin rights (and the in-game admin lists).
@@ -304,18 +305,25 @@ def _known_names(sql: str) -> list:
         return []
 
 
-def _known_tracks() -> list:
-    return _known_names(
+def _known_tracks(server: str | None = None) -> list:
+    """Track names for a datalist: raced anywhere, plus installed on `server`."""
+    names = set(_known_names(
         "SELECT DISTINCT track_name AS name FROM mart.v_race_results "
         "UNION SELECT DISTINCT track_name FROM mart.v_hotlap_grouped_sessions "
         "ORDER BY 1"
-    )
+    ))
+    if server:
+        names |= _installed_names(server, "track")
+    return sorted(names, key=str.lower)
 
 
-def _known_vehicles() -> list:
-    return _known_names(
+def _known_vehicles(server: str | None = None) -> list:
+    names = set(_known_names(
         "SELECT DISTINCT vehicle_name AS name FROM mart.v_race_results ORDER BY 1"
-    )
+    ))
+    if server:
+        names |= _installed_names(server, "vehicle")
+    return sorted(names, key=str.lower)
 
 
 def _fmt_weighted(items) -> str:
@@ -654,49 +662,67 @@ def _apply_ingame_admins_now(server: str, admins) -> str:
 
 
 # ----------------------------------------------------- content validation
-VEH_NAME_CACHE = "/srv/tsura/server_config/.veh_names.{server}.json"
-# world-readable copy of the vehicle tools (same one the career blueprint uses)
-VEH_TOOLS_DIR = "/home/career/career_tools"
+CONTENT_CACHE = "/srv/tsura/server_config/.content.{server}.json"
 
 
-def _server_veh_names(server: str) -> set:
-    """Vehicle names parsed from the server's .veh files (cached by
-    mtime+size). Incomplete: built-in game vehicles have no file and some
-    modded .veh don't parse — callers must union other name sources."""
-    try:
-        if VEH_TOOLS_DIR not in __import__("sys").path:
-            __import__("sys").path.insert(0, VEH_TOOLS_DIR)
-        import tsu_veh
-        cache_path = VEH_NAME_CACHE.format(server=server)
-        cache = _load_json(cache_path) or {}
-        vdir = _upload_dir(server, "vehicle")
-        out, new_cache, dirty = set(), {}, False
-        for entry in os.scandir(vdir):
-            if not entry.is_file() or not entry.name.lower().endswith(".veh"):
+def _server_content(server: str) -> dict:
+    """{'track': {name: guid}, 'vehicle': {name: guid}} from the server's files.
+
+    This is what makes freshly uploaded content usable: the race database only
+    knows what has already been driven, so before this a new track or car could
+    neither be picked from the list nor saved. Reading the files themselves
+    also supplies the GUID, which the TopDown panel needs and could otherwise
+    only get from a race that has not happened yet.
+
+    Cached per file by mtime+size, because a Levels folder holds ~1300 files.
+    """
+    kinds = {"track": ("track", ".lvl"), "vehicle": ("vehicle", ".veh")}
+    out = {"track": {}, "vehicle": {}}
+    cache_path = CONTENT_CACHE.format(server=server)
+    cache = _load_json(cache_path) or {}
+    new_cache, dirty = {}, False
+    for kind, (upload_kind, ext) in kinds.items():
+        try:
+            entries = list(os.scandir(_upload_dir(server, upload_kind)))
+        except OSError:
+            continue
+        for entry in entries:
+            if not entry.is_file() or not entry.name.lower().endswith(ext):
                 continue
-            st = entry.stat()
-            key = f"{st.st_mtime_ns}:{st.st_size}"
-            cached = cache.get(entry.name)
-            if cached and cached.get("key") == key:
-                name = cached.get("name")
-            else:
+            try:
+                stat = entry.stat()
+            except OSError:
+                continue
+            key = f"{stat.st_mtime_ns}:{stat.st_size}"
+            cache_key = f"{kind}/{entry.name}"
+            cached = cache.get(cache_key)
+            if not cached or cached.get("key") != key:
                 dirty = True
                 try:
-                    veh = tsu_veh.read_veh(entry.path)
-                    name = veh.get("name") if isinstance(veh, dict) else None
+                    info = read_content_file(entry.path)
+                    cached = {"key": key, "name": info["name"],
+                              "guid": info["guid"]}
                 except Exception:
-                    name = None
-                cached = {"key": key, "name": name}
-            new_cache[entry.name] = cached
+                    # An unreadable file must not cost us the other 1300.
+                    cached = {"key": key, "name": None, "guid": None}
+            new_cache[cache_key] = cached
             if cached.get("name"):
-                out.add(cached["name"])
-        if dirty or len(new_cache) != len(cache):
+                out[kind][cached["name"]] = cached.get("guid")
+    if dirty or len(new_cache) != len(cache):
+        try:
             with open(cache_path, "w", encoding="utf-8") as fh:
                 json.dump(new_cache, fh)
             os.chmod(cache_path, 0o664)
-        return out
-    except Exception:
+        except OSError:
+            pass          # a cache we cannot write is slow, not broken
+    return out
+
+
+def _installed_names(server: str, kind: str) -> set:
+    """Names of the `kind` files installed on `server` (empty if unknown)."""
+    if server not in UPLOAD_SERVERS:
         return set()
+    return set(_server_content(server)[kind])
 
 
 def _check_content_names(kind: str, names, server: str, extra_known=()) -> None:
@@ -710,9 +736,8 @@ def _check_content_names(kind: str, names, server: str, extra_known=()) -> None:
     """
     if request.form.get("allow_new") == "1":
         return
-    known = set(_known_tracks() if kind == "track" else _known_vehicles())
-    if kind == "vehicle" and server in UPLOAD_SERVERS:
-        known |= _server_veh_names(server)
+    known = set(_known_tracks(server) if kind == "track"
+                else _known_vehicles(server))
     known |= set(extra_known)
     by_lower = {k.lower(): k for k in known}
     problems = []
@@ -851,8 +876,19 @@ def _guid_lookup(column: str, name_column: str) -> dict:
 
 
 def _topdown_known_guids() -> tuple:
-    return (_guid_lookup("track_guid", "track_name"),
-            _guid_lookup("vehicle_guid", "vehicle_name"))
+    """(tracks, cars) as name -> GUID, from the race DB plus installed files.
+
+    The panel refuses to save a track or car without a GUID, so without the
+    installed files freshly uploaded content stays unusable until it has been
+    raced — which it cannot be until it is in the pool.
+    """
+    content = _server_content("topdown")
+    tracks = _guid_lookup("track_guid", "track_name")
+    cars = _guid_lookup("vehicle_guid", "vehicle_name")
+    # The file is the better source: it is what this server actually loads.
+    tracks.update({n: g for n, g in content["track"].items() if g})
+    cars.update({n: g for n, g in content["vehicle"].items() if g})
+    return tracks, cars
 
 
 def _rows_from_form(prefix: str) -> list:
@@ -1259,8 +1295,8 @@ def _heat_panel(server: str):
         cars_text=_fmt_weighted(cfg.get("cars", [])) if server == "casual_heat" else "",
         vehicles_text="\n".join(cfg.get("vehicles", [])) if server == "tripleheat" else "",
         is_owner=owner,
-        track_options=_known_tracks(),
-        vehicle_options=_known_vehicles(),
+        track_options=_known_tracks(server),
+        vehicle_options=_known_vehicles(server),
         param_specs=specs,
         qdisp=qdisp,
         rdisp=rdisp,
@@ -1330,8 +1366,8 @@ def hotlapping():
         meta=SERVERS["hotlapping"],
         cfg=cfg,
         pending=(applied != cfg),
-        track_options=_known_tracks(),
-        vehicle_options=_known_vehicles(),
+        track_options=_known_tracks("hotlapping"),
+        vehicle_options=_known_vehicles("hotlapping"),
         **_collision_context("hotlapping", cfg),
         **_upload_context("hotlapping"),
         **_control_context("hotlapping"),
