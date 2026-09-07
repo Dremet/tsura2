@@ -191,7 +191,34 @@ SERVER_NAME_KEYS = {
     "#3 TripleHeat": "tripleheat",
     "Casual Wed Heat": "casual_heat",
     "TSURA Career": "career",
+    "Topdown Racing": "topdown",
 }
+
+# The name the topdown server reports to the Steam master (game.json serverName).
+TOPDOWN_SERVER_NAME = "Topdown Racing"
+
+# Written by the tsura.org admin panel, read by the topdown controller.
+TOPDOWN_CONFIG = "/srv/tsura/server_config/topdown.json"
+
+
+def _live_servers() -> list[dict]:
+    """The TSU servers Steam currently lists, most players first."""
+    servers: list[dict] = []
+    try:
+        resp = requests.get(API_URL, timeout=3)
+        for s in resp.json().get("response", {}).get("servers", []):
+            servers.append(
+                {
+                    "name": s.get("name", "N/A"),
+                    "players": s.get("players", 0),
+                    "max_players": s.get("max_players", 0),
+                    "secure": s.get("secure", False),
+                }
+            )
+    except Exception:
+        pass
+    servers.sort(key=lambda x: (-x["players"], x["name"].lower()))
+    return servers
 
 
 def _server_admin_names(cur):
@@ -276,27 +303,12 @@ def index():
                    for r in cur.fetchall()]
 
     # server list -----------------------------------------------------------
-    servers: list[dict] = []
-    try:
-        resp = requests.get(API_URL, timeout=3)
-        for s in resp.json().get("response", {}).get("servers", []):
-            servers.append(
-                {
-                    "name": s.get("name", "N/A"),
-                    "players": s.get("players", 0),
-                    "max_players": s.get("max_players", 0),
-                    "secure": s.get("secure", False),
-                }
-            )
-    except Exception:
-        pass
+    servers = _live_servers()
 
     for srv in servers:
         # Steam reports "serverName/currentEventName" — match on the prefix
         base_name = srv["name"].split("/")[0].strip()
         srv["admins"] = admin_names.get(SERVER_NAME_KEYS.get(base_name, ""), [])
-
-    servers.sort(key=lambda x: (-x["players"], x["name"].lower()))
 
     return render_template(
         "index.html",
@@ -488,6 +500,124 @@ def hotlapping_detail(group_id: str):
         opt_lap=_fmt_lap_time(optimal_lap_sec),
         opt_diff=f"{optimal_diff:+.4f}",
         fastest_lap=fastest_lap_fmt,
+    )
+
+
+# --------------------------------------------------------------------------- #
+#  TOPDOWN                                                                    #
+# --------------------------------------------------------------------------- #
+def _topdown_config() -> dict:
+    """The topdown pool config, or {} if it cannot be read."""
+    try:
+        with open(TOPDOWN_CONFIG, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        return cfg if isinstance(cfg, dict) else {}
+    except Exception:
+        return {}
+
+
+def _active(items: list) -> list:
+    """Pool entries the controller may draw: weight missing counts as active."""
+    out = []
+    for it in items or []:
+        if not isinstance(it, dict) or not it.get("name"):
+            continue
+        try:
+            if float(it.get("weight", 1.0)) > 0:
+                out.append(it)
+        except (TypeError, ValueError):
+            out.append(it)
+    return out
+
+
+@main_bp.route("/topdown")
+def topdown():
+    """Topdown Heat: what the server is, who is on it, and the current pools."""
+    cfg = _topdown_config()
+    tracks = _active(cfg.get("tracks"))
+    vehicles = _active(cfg.get("vehicles"))
+
+    try:
+        override = int(float(cfg.get("laps_override") or 0))
+    except (TypeError, ValueError):
+        override = 0
+    try:
+        default_bonus = float(cfg.get("lap_bonus_max_pct") or 0)
+    except (TypeError, ValueError):
+        default_bonus = 0.0
+
+    conn = db_pool.get_conn()
+    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        recent = _last_day_summary(cur, "topdown")
+
+        # One record row per track/car combination — humans only, because a
+        # bot lap is not something anyone can go and beat.
+        cur.execute(
+            """
+            SELECT DISTINCT ON (track_guid, vehicle_guid)
+                   track_guid, vehicle_guid, fastest_lap,
+                   steam_id, driver_name, driver_flag, utc_start_time
+              FROM mart.v_race_results
+             WHERE server = 'topdown'
+               AND is_ai = false
+               AND fastest_lap IS NOT NULL
+               AND fastest_lap > 0
+          ORDER BY track_guid, vehicle_guid, fastest_lap;
+            """
+        )
+        records = {(r["track_guid"], r["vehicle_guid"]): r for r in cur.fetchall()}
+
+    rows = []
+    for tr in tracks:
+        try:
+            laps = int(float(tr.get("laps") or 0))
+        except (TypeError, ValueError):
+            laps = 0
+        bonus = tr.get("lap_bonus_pct")
+        try:
+            bonus = default_bonus if bonus is None else float(bonus)
+        except (TypeError, ValueError):
+            bonus = default_bonus
+
+        cars = []
+        for ve in vehicles:
+            rec = records.get((tr.get("guid"), ve.get("guid")))
+            cars.append({
+                "name": ve.get("name"),
+                "record": {
+                    "lap_fmt": _fmt_lap_time(rec["fastest_lap"]),
+                    "driver_name": rec["driver_name"],
+                    "steam_id": rec["steam_id"],
+                    "flag_code": _flag_code(rec["driver_flag"]),
+                    "when": rec["utc_start_time"],
+                } if rec else None,
+            })
+
+        rows.append({
+            "name": tr.get("name"),
+            "type": tr.get("type"),
+            "laps": override or laps,
+            "laps_forced": bool(override),
+            "bonus_pct": bonus,
+            "cars": cars,
+        })
+
+    live = None
+    for srv in _live_servers():
+        if srv["name"].split("/")[0].strip() == TOPDOWN_SERVER_NAME:
+            live = srv
+            break
+
+    return render_template(
+        "topdown.html",
+        live=live,
+        server_name=TOPDOWN_SERVER_NAME,
+        recent=recent,
+        tracks=rows,
+        vehicles=vehicles,
+        tracks_per_heat=cfg.get("tracks_per_heat"),
+        quali_laps=(cfg.get("quali") or {}).get("laps"),
+        bots_off_from_humans=cfg.get("bots_off_from_humans"),
     )
 
 

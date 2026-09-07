@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}TSURA | TopDown{% endblock %}
+{% block content %}
+
+<section class="intro mb-4 p-4 rounded border border-info"
+         style="background: linear-gradient(135deg, rgba(13,202,240,.18), rgba(0,0,0,0) 60%);">
+    <h1 class="h3 mb-3">Introduction into &ldquo;Topdown Heat&rdquo; &ndash; the Matchmaking Server</h1>
+    <p class="mb-0">
+        Jump into fast-paced Topdown Heats with a fixed isometric camera and intense
+        ~3-minute races whenever you want. A new Heat is automatically created as soon
+        as you join a server, so you can jump straight into the action. Each Heat
+        consists of 3 races, with tracks and vehicles dynamically selected from the
+        available pools. Before every race, drivers compete in a collision-free,
+        ghosted Qualifying session to determine the starting grid. Bots are always
+        active to keep races populated. Once 5 human players join the server, the bots
+        are automatically disabled, letting the Heat continue with a fully human grid.
+    </p>
+</section>
+
+<div class="row g-4">
+    <!-- LEFT: live status + last races -->
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-dark"><strong>Server status</strong></div>
+            <div class="card-body">
+                {% if live %}
+                <p class="mb-1">
+                    <span class="badge bg-success">Online</span>
+                    <span class="ms-2">{{ live.name }}</span>
+                </p>
+                <p class="mb-0 fs-5">
+                    {{ live.players }}/{{ live.max_players }} drivers on track
+                </p>
+                {% else %}
+                <p class="mb-1"><span class="badge bg-secondary">Offline</span></p>
+                <p class="mb-0 text-secondary small">
+                    {{ server_name }} is not listed by Steam right now.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if recent %}
+        <div class="card mb-4">
+            <div class="card-header bg-info text-dark d-flex align-items-center gap-2">
+                <strong>Latest races</strong>
+                <small class="ms-1" style="opacity:.85">last race day: {{ recent[0].utc_start_time.strftime('%d.%m.%Y') }}</small>
+                <a href="{{ url_for('main.races', server='topdown') }}" class="ms-auto btn btn-light btn-sm">More</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-dark table-hover align-middle mb-0" style="table-layout:fixed">
+                    <thead>
+                        <tr>
+                            <th class="d-none d-sm-table-cell" style="width:16%">Time</th>
+                            <th>Track</th>
+                            <th style="width:30%">Winner</th>
+                            <th style="width:4.5rem"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in recent %}
+                        <tr>
+                            <td class="text-muted small d-none d-sm-table-cell">{{ s.utc_start_time.strftime('%H:%M') }}</td>
+                            <td class="text-truncate" title="{{ s.track_name }}"><span class="fi fi-{{ track_flag(s.track_name) }} me-1"></span>{{ s.track_name }}</td>
+                            <td class="text-truncate" title="{{ s.winner or '' }}">{{ s.winner or '—' }}</td>
+                            <td class="text-end pe-2">
+                                <a href="{{ url_for('main.race_detail', session_id=s.session_id) }}"
+                                   class="btn btn-warm-red btn-sm">View</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card mb-4">
+            <div class="card-header bg-info text-dark"><strong>Heat format</strong></div>
+            <div class="card-body">
+                <ul class="mb-0 ps-3">
+                    {% if tracks_per_heat %}<li>{{ tracks_per_heat }} races per Heat</li>{% endif %}
+                    {% if quali_laps %}<li>{{ quali_laps }}-lap ghosted Qualifying before every race</li>{% endif %}
+                    {% if bots_off_from_humans %}<li>Bots switch off from {{ bots_off_from_humans }} human drivers</li>{% endif %}
+                    <li>{{ tracks | length }} tracks and {{ vehicles | length }} cars in the active pools</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: active tracks and their cars -->
+    <div class="col-lg-7">
+        <h2 class="h4 mb-3">Active tracks &amp; cars</h2>
+        {% if not tracks %}
+        <p class="text-secondary">The track pool is currently empty.</p>
+        {% endif %}
+        {% for t in tracks %}
+        <div class="card mb-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <span class="fi fi-{{ track_flag(t.name) }}"></span>
+                <strong>{{ t.name }}</strong>
+                <span class="ms-auto text-secondary small">
+                    {% if t.laps %}{{ t.laps }} laps{% if t.laps_forced %} (test setting){% elif t.bonus_pct %} +0&ndash;{{ t.bonus_pct | round(0) | int }}%{% endif %}{% endif %}
+                    {% if t.type %} · {{ t.type }}{% endif %}
+                </span>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-dark table-sm table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Car</th>
+                            <th style="width:8rem">Record</th>
+                            <th style="width:40%">Held by</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in t.cars %}
+                        <tr>
+                            <td>{{ c.name }}</td>
+                            {% if c.record %}
+                            <td class="tnum">{{ c.record.lap_fmt }}</td>
+                            <td class="text-truncate">
+                                {% if c.record.flag_code %}<span class="fi fi-{{ c.record.flag_code }} me-1"></span>{% endif %}
+                                <a href="{{ url_for('main.driver_profile', driver_id=c.record.steam_id) }}"
+                                   class="text-white">{{ c.record.driver_name }}</a>
+                                <span class="text-secondary small">{{ c.record.when.strftime('%d.%m.%Y') }}</span>
+                            </td>
+                            {% else %}
+                            <td class="text-secondary">—</td>
+                            <td class="text-secondary small">no lap yet</td>
+                            {% endif %}
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-secondary">No cars in the pool.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
