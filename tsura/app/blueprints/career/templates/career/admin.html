@@ -132,7 +132,7 @@
 
 <h5 class="mt-4">Track pool</h5>
 <p class="text-secondary small">
-  Tracks the Monday session picks from ({{ track_pool.per_session or '?' }} per session, equal odds).
+  The Monday session picks unused tracks from this pool ({{ track_pool.per_session or '?' }} per session, equal odds).
   Read-only — edit <code>{{ track_pool.source }}</code> on the Career server to change it.
 </p>
 {% if track_pool.error %}
@@ -141,12 +141,15 @@
 <div class="card bg-dark border-secondary mb-3"><div class="card-body py-2">
   <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-1 small">
     {% for t in track_pool.tracks %}
-    <div class="col"><span class="fi fi-{{ track_flag(t.name) }} me-1"></span>{{ t.name }}{% if t.weight != 1 %} <span class="text-secondary">&times;{{ t.weight }}</span>{% endif %}</div>
+    <div class="col {{ 'text-secondary' if t.taken }}">
+      <span class="fi fi-{{ track_flag(t.name) }} me-1"></span>{{ t.name }}{% if t.weight != 1 %} <span class="text-secondary">&times;{{ t.weight }}</span>{% endif %}
+      {% if t.taken %}<span class="badge bg-secondary ms-1">taken</span>{% endif %}
+    </div>
     {% else %}
     <div class="col text-secondary">No tracks found in the file.</div>
     {% endfor %}
   </div>
-  <div class="text-secondary small mt-2">{{ track_pool.tracks | length }} tracks</div>
+  <div class="text-secondary small mt-2">{{ track_pool.tracks | length - track_pool.taken_count }} available · {{ track_pool.taken_count }} taken this season</div>
 </div></div>
 {% endif %}
 

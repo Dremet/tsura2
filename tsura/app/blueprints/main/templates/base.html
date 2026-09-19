@@ -154,17 +154,14 @@
     document.addEventListener("DOMContentLoaded", () => {
       const els = document.querySelectorAll(".js-deadline");
       if (!els.length) return;
-      const berlinNow = () => new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Berlin"}));
       const tick = () => {
-        const now = berlinNow(), t = new Date(now);
-        t.setDate(now.getDate() + ((1 - now.getDay() + 7) % 7));
-        t.setHours(20, 55, 0, 0);
-        if (t <= now) t.setDate(t.getDate() + 7);
-        const ms = t - now;
-        const d = Math.floor(ms/86400000), h = Math.floor(ms/3600000)%24,
-              m = Math.floor(ms/60000)%60, s = Math.floor(ms/1000)%60;
-        const txt = (d ? d + "d " : "") + h + "h " + m + "m " + s + "s";
-        els.forEach(e => e.textContent = txt);
+        const now = Date.now();
+        els.forEach((el) => {
+          const ms = Math.max(0, Date.parse(el.dataset.deadline) - now);
+          const d = Math.floor(ms/86400000), h = Math.floor(ms/3600000)%24,
+                m = Math.floor(ms/60000)%60, s = Math.floor(ms/1000)%60;
+          el.textContent = (d ? d + "d " : "") + h + "h " + m + "m " + s + "s";
+        });
       };
       tick(); setInterval(tick, 1000);
     });

@@ -67,8 +67,8 @@
             <div class="d-flex align-items-center gap-3 mb-3">
               <span class="fs-2 text-warning">⏱</span>
               <div>
-                <div class="small text-secondary text-uppercase">Upgrade deadline (Mon 20:55 CEST)</div>
-                <div class="fs-3 fw-bold text-warning js-deadline">…</div>
+                <div class="small text-secondary text-uppercase">Upgrade deadline (Mon 20:55 CET/CEST)</div>
+                <div class="fs-3 fw-bold text-warning js-deadline" data-deadline="{{ upgrade_deadline }}">…</div>
               </div>
             </div>
             <a href="{{ url_for('career.garage') }}" class="btn btn-warm-red">Go to your Garage</a>
@@ -116,14 +116,17 @@
   <a href="{{ url_for('career.standings') }}" class="btn btn-outline-light">Standings →</a>
 
 {% if track_pool.tracks %}
-  <h4 class="mt-5">Track pool <span class="text-secondary fs-6">— {{ track_pool.per_session or 3 }} random tracks per race night, equal odds</span></h4>
+  <h4 class="mt-5">Track pool <span class="text-secondary fs-6">— {{ track_pool.per_session or 3 }} random unused tracks per race night, equal odds</span></h4>
   <div class="card bg-dark border-secondary mb-3"><div class="card-body py-2">
     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-1 small">
       {% for t in track_pool.tracks %}
-      <div class="col"><span class="fi fi-{{ track_flag(t.name) }} me-1"></span>{{ t.name }}</div>
+      <div class="col {{ 'text-secondary' if t.taken }}">
+        <span class="fi fi-{{ track_flag(t.name) }} me-1"></span>{{ t.name }}
+        {% if t.taken %}<span class="badge bg-secondary ms-1">taken</span>{% endif %}
+      </div>
       {% endfor %}
     </div>
-    <div class="text-secondary small mt-2">{{ track_pool.tracks | length }} tracks</div>
+    <div class="text-secondary small mt-2">{{ track_pool.tracks | length - track_pool.taken_count }} available · {{ track_pool.taken_count }} taken this season</div>
   </div></div>
 {% endif %}
 {% endif %}

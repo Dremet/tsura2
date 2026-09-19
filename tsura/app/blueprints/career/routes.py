@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import hmac
 import io
+import json
 import os
 import re
 import sys
 import tempfile
-from datetime import date
+from datetime import date, datetime, timedelta
 from functools import wraps
+from zoneinfo import ZoneInfo
 
 import psycopg
 from flask import (abort, current_app, flash, g, redirect, render_template,
@@ -80,6 +82,7 @@ AXIS_DESCRIPTIONS = {
 # Server-side vehicle tools (deployed from tsura_server_scripts/career/);
 # used to build the downloadable .veh from the driver's current tuning.
 CAREER_TOOLS_DIR = "/home/career/career_tools"
+BERLIN = ZoneInfo("Europe/Berlin")
 
 
 def _career_vehicles():
@@ -153,6 +156,23 @@ def _seasons(cur):
     return cur.fetchall()
 
 
+def _upgrade_deadline(now=None):
+    """Next Monday 20:55 in Berlin, returned as an absolute ISO timestamp."""
+    now = now.astimezone(BERLIN) if now else datetime.now(BERLIN)
+    deadline = (now + timedelta(days=(-now.weekday()) % 7)).replace(
+        hour=20, minute=55, second=0, microsecond=0)
+    if deadline <= now:
+        deadline += timedelta(days=7)
+    return deadline.isoformat()
+
+
+def _season_used_tracks(cur, season_id):
+    cur.execute("SELECT DISTINCT track_name "
+                "FROM mart.v_career_race_sessions "
+                "WHERE season_id = %s AND track_name IS NOT NULL", (season_id,))
+    return {r["track_name"] for r in cur.fetchall()}
+
+
 # ------------------------------------------------------------------- public
 @career_bp.route("/")
 def home():
@@ -160,7 +180,9 @@ def home():
         season = _active_season(cur)
         balance, enrolled = None, False
         challenge, day_objs = None, []
+        used_tracks = set()
         if season:
+            used_tracks = _season_used_tracks(cur, season["id"])
             sid = g.get("current_steam_id")
             if sid:
                 cur.execute("SELECT 1 FROM career.enrollments "
@@ -195,7 +217,9 @@ def home():
                                       if str(o["steam_id"]) == str(sid)), None)
     return render_template("career/home.html", season=season,
                            balance=balance, enrolled=enrolled,
-                           track_pool=_track_pool(),
+                           track_pool=_track_pool(
+                               season["id"] if season else None, used_tracks),
+                           upgrade_deadline=_upgrade_deadline(),
                            challenge=challenge, day_objs=day_objs,
                            is_admin=_is_admin(g.get("current_steam_id")),
                            is_participant=_is_participant(g.get("current_steam_id")))
@@ -381,7 +405,8 @@ def garage():
     ]
     return render_template("career/garage.html", season=season, enrolled=True,
                            balance=balance, items=items, sections=sections,
-                           undo_info=undo_info)
+                           undo_info=undo_info,
+                           upgrade_deadline=_upgrade_deadline())
 
 
 @career_bp.route("/garage/download")
@@ -564,8 +589,8 @@ CAREER_AUTORUN = os.environ.get(
     "CAREER_AUTORUN_PATH", "/home/career/server/config/Scripts/create_autorun.py")
 
 
-def _track_pool() -> dict:
-    """Parse TRACKS/NUMBER_TRACKS from create_autorun.py. Fail-soft."""
+def _track_pool(season_id=None, used_tracks=()) -> dict:
+    """Parse the pool and mark tracks selected in the current season."""
     out = {"tracks": [], "per_session": None, "source": CAREER_AUTORUN, "error": None}
     try:
         with open(CAREER_AUTORUN, encoding="utf-8") as fh:
@@ -577,9 +602,21 @@ def _track_pool() -> dict:
     if m:
         out["per_session"] = int(m.group(1))
     m = re.search(r"^TRACKS\s*=\s*\[(.*?)^\]", src, re.M | re.S)
+    taken = set(used_tracks)
+    history_path = os.path.join(os.path.dirname(CAREER_AUTORUN),
+                                "career_track_history.json")
+    try:
+        with open(history_path, encoding="utf-8") as fh:
+            history = json.load(fh)
+        if history.get("season_id") == season_id:
+            taken.update(history.get("tracks", []))
+    except (OSError, ValueError, TypeError):
+        pass
     if m:
-        out["tracks"] = [{"name": n, "weight": int(w)} for n, w in
+        out["tracks"] = [{"name": n, "weight": int(w), "taken": n in taken}
+                         for n, w in
                          re.findall(r"\(\s*'([^']+)'\s*,\s*(\d+)\s*\)", m.group(1))]
+    out["taken_count"] = sum(track["taken"] for track in out["tracks"])
     return out
 
 # ------------------------------------------------------------------- admin
@@ -621,7 +658,9 @@ def admin():
         penalties = cur.fetchall()
         pen_season = _active_season(cur)
         pen_drivers = []
+        used_tracks = set()
         if pen_season:
+            used_tracks = _season_used_tracks(cur, pen_season["id"])
             cur.execute(
                 "SELECT DISTINCT steam_id, driver_name AS name "
                 "FROM mart.v_career_driver_cars "
@@ -647,7 +686,10 @@ def admin():
     return render_template("career/admin.html", seasons=seasons, axes=AXES,
                            build_requests=build_requests, sdef=sdef,
                            axis_labels=AXIS_LABELS, participants=participants,
-                           enrolled=enrolled, track_pool=_track_pool(),
+                           enrolled=enrolled,
+                           track_pool=_track_pool(
+                               pen_season["id"] if pen_season else None,
+                               used_tracks),
                            penalties=penalties, pen_drivers=pen_drivers,
                            pen_season=pen_season)
 
