@@ -5,11 +5,11 @@ from __future__ import annotations
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import psycopg
 import requests
-from flask import current_app, g, make_response, redirect, request, url_for
+from flask import current_app, g, make_response, redirect, request, session, url_for
 
 from . import auth_bp
 from ...extensions import db_pool
@@ -18,6 +18,19 @@ from ...extensions import db_pool
 _STEAM_OPENID_URL = "https://steamcommunity.com/openid/login"
 _CLAIMED_ID_RE    = re.compile(r"https://steamcommunity\.com/openid/id/(\d+)$")
 _SESSION_DAYS     = 30
+_LOGIN_NEXT_KEY   = "post_login_next"
+
+
+def _safe_next(value: str | None) -> str | None:
+    """Accept only paths on this website as post-login destinations."""
+    if not value or not value.startswith("/") or value.startswith("//"):
+        return None
+    if "\\" in value or any(ord(char) < 32 or ord(char) == 127 for char in value):
+        return None
+    parts = urlsplit(value)
+    if parts.scheme or parts.netloc or parts.fragment:
+        return None
+    return value
 
 
 def _verify_openid(params: dict) -> int | None:
@@ -42,6 +55,11 @@ def _verify_openid(params: dict) -> int | None:
 @auth_bp.route("/login")
 def login():
     base_url = current_app.config["TSURA_BASE_URL"]
+    destination = _safe_next(request.args.get("next"))
+    if destination:
+        session[_LOGIN_NEXT_KEY] = destination
+    else:
+        session.pop(_LOGIN_NEXT_KEY, None)
     params = {
         "openid.ns":         "http://specs.openid.net/auth/2.0",
         "openid.mode":       "checkid_setup",
@@ -55,6 +73,7 @@ def login():
 
 @auth_bp.route("/callback")
 def callback():
+    destination = _safe_next(session.pop(_LOGIN_NEXT_KEY, None))
     steam_id = _verify_openid(request.args.to_dict())
     if not steam_id:
         return redirect(url_for("main.index"))
@@ -78,7 +97,7 @@ def callback():
     base_url     = current_app.config["TSURA_BASE_URL"]
     secure_cookie = base_url.startswith("https://")
 
-    resp = make_response(redirect(url_for("main.index")))
+    resp = make_response(redirect(destination or url_for("main.index")))
     resp.set_cookie(
         "tsura_sid",
         session_id,

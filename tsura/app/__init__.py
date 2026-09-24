@@ -39,6 +39,8 @@ def create_app() -> Flask:
     app.config["TSURA_BASE_URL"] = (
         os.environ.get("TSURA_BASE_URL", "http://localhost:5000").rstrip("/")
     )
+    app.config["SESSION_COOKIE_SECURE"] = app.config["TSURA_BASE_URL"].startswith("https://")
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
     db_pool.init_app(app)
 

@@ -131,6 +131,11 @@ def _is_participant(steam_id) -> bool:
 def _admin_required(f):
     @wraps(f)
     def wrapper(*a, **k):
+        if not g.get("current_steam_id"):
+            destination = (request.full_path if request.query_string else request.path)
+            if request.method != "GET":
+                destination = url_for("career.admin")
+            return redirect(url_for("auth.login", next=destination))
         if not _is_admin(g.get("current_steam_id")):
             abort(403)
         return f(*a, **k)
