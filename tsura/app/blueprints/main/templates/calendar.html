@@ -5,7 +5,7 @@
   <div class="calendar-hero-content">
     <p class="calendar-eyebrow mb-2">TSURA race nights</p>
     <h1 class="display-6 mb-3">Race calendar</h1>
-    <p class="calendar-hero-copy mb-4">Find the next league race and get ready for the grid. Dates and times automatically follow your device's time zone.</p>
+    <p class="calendar-hero-copy mb-4">Find upcoming league and one-off races and get ready for the grid. Dates and times automatically follow your device's time zone.</p>
     <div class="d-flex flex-wrap align-items-center gap-2">
       <span class="calendar-count">{{ events|length }} upcoming {{ 'race' if events|length == 1 else 'races' }}</span>
       <span class="calendar-zone">Time zone: <strong data-calendar-zone>UTC</strong></span>
@@ -47,7 +47,7 @@
   <div class="calendar-empty">
     <span class="calendar-empty-icon" aria-hidden="true">🏁</span>
     <h3 class="h4 mb-2">The grid is quiet for now</h3>
-    <p class="text-secondary mb-0">New race dates will appear here as soon as a league schedules them.</p>
+    <p class="text-secondary mb-0">New race dates will appear here when an admin schedules them.</p>
     {% if admin_servers %}<a class="btn btn-warm-red mt-3" href="{{ url_for('admin.calendar') }}">Schedule a race</a>{% endif %}
   </div>
   {% endif %}
@@ -72,7 +72,7 @@
           <td>{{ event.details }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="3" class="text-secondary py-4">No recent league races to show yet.</td></tr>
+        <tr><td colspan="3" class="text-secondary py-4">No recent race events to show yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>

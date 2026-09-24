@@ -5,7 +5,7 @@
 <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
   <div>
     <h1 class="mb-1">Race calendar</h1>
-    <p class="text-secondary mb-0">Schedule races for any league. All times use your device's time zone.</p>
+    <p class="text-secondary mb-0">Schedule league or one-off races. All times use your device's time zone.</p>
   </div>
   <a href="{{ url_for('main.calendar') }}" class="btn btn-outline-light ms-auto">View public calendar</a>
 </div>
@@ -15,7 +15,6 @@
     <div class="card bg-dark border-secondary h-100">
       <div class="card-header"><h2 class="h5 mb-0" id="event-form-title">Add race event</h2></div>
       <div class="card-body">
-        {% if not leagues %}<p class="text-warning">Create a league first, then you can schedule its races.</p>{% endif %}
         <form method="post" id="event-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="action" value="create_event" id="event-action">
@@ -24,9 +23,10 @@
           <input type="hidden" name="utc_offset" id="event-offset">
           <div class="row g-3">
             <div class="col-12 col-md-5">
-              <label for="event-league" class="form-label">League</label>
+              <label for="event-league" class="form-label">League or one-off event</label>
               <select id="event-league" name="league_id" class="form-select" required>
                 <option value="">Choose a league</option>
+                <option value="one-off">One-off event (no league)</option>
                 {% for league in leagues %}<option value="{{ league.id }}">{{ league.name }}</option>{% endfor %}
               </select>
             </div>
@@ -47,7 +47,7 @@
             </div>
           </div>
           <div class="d-flex gap-2 mt-4">
-            <button class="btn btn-warm-red" type="submit" {% if not leagues %}disabled{% endif %} id="event-submit">Create event(s)</button>
+            <button class="btn btn-warm-red" type="submit" id="event-submit">Create event(s)</button>
             <button class="btn btn-outline-secondary d-none" type="button" id="cancel-event-edit">Cancel edit</button>
           </div>
         </form>
@@ -111,7 +111,7 @@
         <td>{{ event.league_name }}</td>
         <td>{{ event.details }}</td>
         <td class="text-end text-nowrap">
-          <button type="button" class="btn btn-outline-light btn-sm edit-event" data-id="{{ event.id }}" data-league="{{ event.league_id }}" data-details="{{ event.details }}" data-start="{{ event.starts_at.isoformat() }}">Edit</button>
+          <button type="button" class="btn btn-outline-light btn-sm edit-event" data-id="{{ event.id }}" data-league="{{ event.league_id if event.league_id is not none else 'one-off' }}" data-details="{{ event.details }}" data-start="{{ event.starts_at.isoformat() }}">Edit</button>
           <form method="post" class="d-inline" onsubmit="return confirm('Delete this race event?')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="action" value="delete_event">

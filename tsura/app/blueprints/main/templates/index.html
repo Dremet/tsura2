@@ -99,7 +99,7 @@
             <div class="home-calendar-header">
                 <p class="calendar-eyebrow mb-1">On the horizon</p>
                 <div class="d-flex align-items-center gap-2">
-                    <h2 class="h5 mb-0" id="home-calendar-title">Next league races</h2>
+                    <h2 class="h5 mb-0" id="home-calendar-title">Next race events</h2>
                     <a href="{{ url_for('main.calendar') }}" class="home-calendar-more ms-auto">Show more →</a>
                 </div>
             </div>
@@ -123,7 +123,7 @@
             {% else %}
             <div class="home-calendar-empty"><span aria-hidden="true">🏁</span> No upcoming races scheduled.</div>
             {% endif %}
-            <p class="home-calendar-note mb-0">League races only. Regular weekly non-league races are not listed here.</p>
+            <p class="home-calendar-note mb-0">League and one-off events only. Regular weekly non-league races are not listed here.</p>
         </section>
         {% if elo_top %}
         <div class="card mb-4">

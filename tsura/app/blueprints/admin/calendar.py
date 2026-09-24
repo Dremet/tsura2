@@ -15,6 +15,8 @@ COLOR_OPTIONS = (
     ("teal", "Teal"),
     ("gold", "Gold"),
     ("violet", "Violet"),
+    ("blue", "Blue"),
+    ("lime", "Lime"),
 )
 
 
@@ -81,16 +83,20 @@ def calendar():
                             raise ValueError("League no longer exists.")
                     message = "League saved."
                 elif action in ("create_event", "update_event"):
-                    league_id = _id("league_id")
+                    league_id = (None if request.form.get("league_id") == "one-off"
+                                 else _id("league_id"))
                     details = _required_text("details", "Race details", 160)
-                    cur.execute("SELECT 1 FROM webadmin.leagues WHERE id = %s", (league_id,))
-                    if not cur.fetchone():
-                        raise ValueError("Choose an existing league.")
+                    if league_id is not None:
+                        cur.execute("SELECT 1 FROM webadmin.leagues WHERE id = %s", (league_id,))
+                        if not cur.fetchone():
+                            raise ValueError("Choose an existing league.")
                     if action == "create_event":
                         try:
                             count = int(request.form.get("repeat_count", "1"))
                         except ValueError:
                             raise ValueError("Choose between 1 and 26 events.") from None
+                        if league_id is None and count != 1:
+                            raise ValueError("One-off events can only have one date.")
                         starts = _event_starts(count)
                         for start in starts:
                             cur.execute(
@@ -135,8 +141,10 @@ def calendar():
                     "FROM webadmin.leagues ORDER BY lower(name)")
         leagues = cur.fetchall()
         event_sql = (
-            "SELECT e.id, e.league_id, e.details, e.starts_at, l.name AS league_name "
-            "FROM webadmin.calendar_events e JOIN webadmin.leagues l ON l.id = e.league_id "
+            "SELECT e.id, e.league_id, e.details, e.starts_at, "
+            "COALESCE(l.name, 'One-off') AS league_name "
+            "FROM webadmin.calendar_events e "
+            "LEFT JOIN webadmin.leagues l ON l.id = e.league_id "
         )
         cur.execute(event_sql + "WHERE e.starts_at >= now() ORDER BY e.starts_at, e.id")
         upcoming = cur.fetchall()

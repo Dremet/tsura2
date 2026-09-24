@@ -13,6 +13,16 @@ document.addEventListener("DOMContentLoaded", () => {
   $("event-start").value = localInput(initial);
   let editOriginal = null;
 
+  const syncRepeat = () => {
+    const enabled = $("event-action").value === "create_event" &&
+      $("event-league").value !== "one-off";
+    $("repeat-wrap").classList.toggle("d-none", !enabled);
+    $("repeat-count").disabled = !enabled;
+    if (!enabled) $("repeat-count").value = "1";
+  };
+  $("event-league").addEventListener("change", syncRepeat);
+  syncRepeat();
+
   $("event-form").addEventListener("submit", () => {
     const local = $("event-start").value;
     // Keep the later DST occurrence if an existing ambiguous time was not changed.
@@ -30,8 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
     $("event-timezone").value = zone;
     $("event-form-title").textContent = "Add race event";
     $("event-submit").textContent = "Create event(s)";
-    $("repeat-wrap").classList.remove("d-none");
-    $("repeat-count").disabled = false;
+    syncRepeat();
     $("cancel-event-edit").classList.add("d-none");
   };
   $("cancel-event-edit").addEventListener("click", cancelEvent);
@@ -46,8 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
       $("event-start").value = editOriginal.local;
       $("event-form-title").textContent = "Edit race event";
       $("event-submit").textContent = "Save changes";
-      $("repeat-wrap").classList.add("d-none");
-      $("repeat-count").disabled = true;
+      syncRepeat();
       $("cancel-event-edit").classList.remove("d-none");
       $("event-form").scrollIntoView({behavior: "smooth", block: "start"});
     });

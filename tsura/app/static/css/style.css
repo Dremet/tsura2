@@ -168,6 +168,9 @@ body>.container-fluid {
 .calendar-accent-teal { --calendar-accent: #42cbbb; --calendar-soft: rgba(66, 203, 187, .16); }
 .calendar-accent-gold { --calendar-accent: #ffcd61; --calendar-soft: rgba(255, 205, 97, .15); }
 .calendar-accent-violet { --calendar-accent: #aa92ff; --calendar-soft: rgba(170, 146, 255, .16); }
+.calendar-accent-blue { --calendar-accent: #6baeff; --calendar-soft: rgba(107, 174, 255, .16); }
+.calendar-accent-lime { --calendar-accent: #a6d96a; --calendar-soft: rgba(166, 217, 106, .16); }
+.calendar-accent-oneoff { --calendar-accent: #9bb4cc; --calendar-soft: rgba(155, 180, 204, .14); }
 
 .league-color-choices { display: flex; flex-wrap: wrap; gap: .5rem; }
 .league-color-choice {
