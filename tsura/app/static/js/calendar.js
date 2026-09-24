@@ -4,13 +4,18 @@ document.addEventListener("DOMContentLoaded", () => {
     weekday: "short", year: "numeric", month: "short", day: "numeric",
     hour: "2-digit", minute: "2-digit", timeZoneName: "short"
   });
+  const compactFormatter = new Intl.DateTimeFormat(undefined, {
+    weekday: "short", month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit", timeZoneName: "short"
+  });
   document.querySelectorAll("[data-calendar-zone]").forEach((element) => {
     element.textContent = zone;
   });
   document.querySelectorAll("[data-local-time]").forEach((element) => {
     const instant = new Date(element.dataset.localTime);
     if (!Number.isNaN(instant.getTime())) {
-      element.textContent = formatter.format(instant);
+      element.textContent = element.hasAttribute("data-calendar-compact-time")
+        ? compactFormatter.format(instant) : formatter.format(instant);
       element.setAttribute("title", zone);
     }
   });

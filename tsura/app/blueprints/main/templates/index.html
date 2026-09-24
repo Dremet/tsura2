@@ -95,27 +95,35 @@
 
     <!-- RIGHT column: upcoming races, ELO top list + currently active servers -->
     <div class="col-lg-4">
-        <div class="card mb-4 bg-dark border-secondary">
-            <div class="card-header bg-danger d-flex align-items-center">
-                <strong>Next league races</strong>
-                <a href="{{ url_for('main.calendar') }}" class="ms-auto btn btn-light btn-sm">Show more</a>
+        <section class="home-calendar-card mb-4" aria-labelledby="home-calendar-title">
+            <div class="home-calendar-header">
+                <p class="calendar-eyebrow mb-1">On the horizon</p>
+                <div class="d-flex align-items-center gap-2">
+                    <h2 class="h5 mb-0" id="home-calendar-title">Next league races</h2>
+                    <a href="{{ url_for('main.calendar') }}" class="home-calendar-more ms-auto">Show more →</a>
+                </div>
             </div>
-            <div class="card-body p-0">
-                {% if upcoming_calendar %}
-                <ul class="list-group list-group-flush">
-                    {% for event in upcoming_calendar %}
-                    <li class="list-group-item bg-dark text-white border-secondary">
-                        <div class="fw-bold">{{ event.league_name }}</div>
-                        <div class="small">{{ event.details }}</div>
-                        <time class="small text-secondary tnum" datetime="{{ event.starts_at.isoformat() }}" data-local-time="{{ event.starts_at.isoformat() }}">{{ event.starts_at.astimezone(utc).strftime('%a %d %b %Y, %H:%M UTC') }}</time>
-                    </li>
-                    {% endfor %}
-                </ul>
-                {% else %}
-                <div class="card-body text-secondary small">No upcoming races scheduled.</div>
-                {% endif %}
+            {% if upcoming_calendar %}
+            <div class="home-calendar-list">
+                {% for event in upcoming_calendar %}
+                <article class="home-calendar-race calendar-accent-{{ (event.league_id - 1) % 4 }}">
+                    <div class="home-calendar-date" data-calendar-date="{{ event.starts_at.isoformat() }}" aria-hidden="true">
+                        <span data-calendar-month>{{ event.starts_at.astimezone(utc).strftime('%b') }}</span>
+                        <strong data-calendar-day>{{ event.starts_at.astimezone(utc).strftime('%d') }}</strong>
+                        <span data-calendar-weekday>{{ event.starts_at.astimezone(utc).strftime('%a') }}</span>
+                    </div>
+                    <div class="home-calendar-race-info">
+                        <button type="button" class="home-calendar-league" data-bs-toggle="tooltip" title="{{ event.league_description or 'No league description yet.' }}" aria-label="{{ event.league_name }}: {{ event.league_description or 'No league description yet.' }}">{{ event.league_name }}</button>
+                        <div class="home-calendar-details">{{ event.details }}</div>
+                        <time class="home-calendar-time tnum" datetime="{{ event.starts_at.isoformat() }}" data-local-time="{{ event.starts_at.isoformat() }}" data-calendar-compact-time>{{ event.starts_at.astimezone(utc).strftime('%a %d %b, %H:%M UTC') }}</time>
+                    </div>
+                </article>
+                {% endfor %}
             </div>
-        </div>
+            {% else %}
+            <div class="home-calendar-empty"><span aria-hidden="true">🏁</span> No upcoming races scheduled.</div>
+            {% endif %}
+        </section>
         {% if elo_top %}
         <div class="card mb-4">
             <div class="card-header bg-danger d-flex align-items-center">

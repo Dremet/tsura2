@@ -112,7 +112,6 @@ body>.container-fluid {
     box-shadow: 0 1rem 2rem rgba(0, 0, 0, .15);
 }
 
-.calendar-hero::before,
 .calendar-empty::before {
     content: "";
     position: absolute;
@@ -125,7 +124,7 @@ body>.container-fluid {
     content: "";
     position: absolute;
     inset: 0 0 0 48%;
-    opacity: .07;
+    opacity: .04;
     background: repeating-conic-gradient(#fff 0 25%, transparent 0 50%) 0 0 / 44px 44px;
     mask-image: linear-gradient(90deg, transparent, #000);
     pointer-events: none;
@@ -140,6 +139,7 @@ body>.container-fluid {
 .calendar-hero-content { max-width: 44rem; }
 .calendar-edit { align-self: flex-start; white-space: nowrap; }
 .calendar-hero-copy { color: #d8d6df; line-height: 1.65; }
+.calendar-hero .calendar-eyebrow { color: #cfcbd8; }
 
 .calendar-eyebrow {
     color: #ff8b7f;
@@ -159,7 +159,7 @@ body>.container-fluid {
     font-size: .85rem;
 }
 
-.calendar-count { background: #ff584d; color: #1d1416; font-weight: 700; }
+.calendar-count { border: 1px solid rgba(255, 255, 255, .2); background: rgba(255, 255, 255, .08); color: #fff; font-weight: 700; }
 .calendar-zone { border: 1px solid rgba(255, 255, 255, .2); color: #e8e6ef; }
 .calendar-zone strong { margin-left: .35rem; color: #fff; }
 
@@ -237,6 +237,88 @@ body>.container-fluid {
 .calendar-history-card thead th { color: #d3d0dd; border-bottom-color: #53515e; }
 .calendar-history-card td { border-bottom-color: #393b48; }
 .calendar-history-card tbody tr:last-child td { border-bottom: 0; }
+
+/* Compact calendar preview on the homepage */
+.home-calendar-card {
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .15);
+    border-radius: .85rem;
+    background: #1c1e28;
+    box-shadow: 0 .75rem 1.5rem rgba(0, 0, 0, .13);
+}
+
+.home-calendar-header {
+    position: relative;
+    padding: 1.1rem 1.2rem 1rem;
+    background: linear-gradient(115deg, #302333, #222838);
+}
+
+.home-calendar-header::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 4px;
+    background: linear-gradient(90deg, #ff584d, #ffcd61, #42cbbb, #9c87ff);
+}
+
+.home-calendar-header .calendar-eyebrow { font-size: .68rem; }
+.home-calendar-more {
+    flex-shrink: 0;
+    padding: .3rem .55rem;
+    border: 1px solid rgba(255, 255, 255, .4);
+    border-radius: 999px;
+    color: #fff;
+    font-size: .75rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.home-calendar-more:hover { border-color: #ff8b7f; color: #ff8b7f; }
+.home-calendar-race {
+    display: grid;
+    grid-template-columns: 3.65rem minmax(0, 1fr);
+    gap: .85rem;
+    align-items: center;
+    padding: .9rem 1rem;
+    border-top: 1px solid rgba(255, 255, 255, .1);
+    border-left: 3px solid var(--calendar-accent);
+    background: linear-gradient(110deg, var(--calendar-soft), transparent 60%);
+}
+
+.home-calendar-date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 4rem;
+    border: 1px solid var(--calendar-accent);
+    border-radius: .5rem;
+    background: var(--calendar-soft);
+    color: var(--calendar-accent);
+    font-size: .6rem;
+    line-height: 1.1;
+    text-transform: uppercase;
+}
+
+.home-calendar-date strong { font-family: 'F1-Bold', sans-serif; font-size: 1.4rem; }
+.home-calendar-race-info { min-width: 0; }
+.home-calendar-league {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--calendar-accent);
+    font-size: .8rem;
+    font-weight: 700;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
+.home-calendar-league:hover { color: #fff; }
+.home-calendar-league:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.home-calendar-details { margin: .15rem 0; font-size: .9rem; line-height: 1.3; overflow-wrap: anywhere; }
+.home-calendar-time { color: #c4c8d1; font-size: .72rem; }
+.home-calendar-empty { padding: 1.5rem 1rem; color: #c4c8d1; font-size: .9rem; text-align: center; }
+.home-calendar-empty span { display: block; margin-bottom: .4rem; font-size: 1.8rem; }
 
 @media (max-width: 575.98px) {
     .calendar-hero { flex-direction: column; }
