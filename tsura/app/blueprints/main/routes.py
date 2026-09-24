@@ -9,6 +9,7 @@ import os
 import re
 import time
 from collections import defaultdict, OrderedDict
+from datetime import timezone
 from typing import List
 
 import psycopg
@@ -201,6 +202,21 @@ TOPDOWN_SERVER_NAME = "Topdown Racing"
 TOPDOWN_CONFIG = "/srv/tsura/server_config/topdown.json"
 
 
+def _upcoming_calendar(cur, limit=None):
+    sql = (
+        "SELECT e.id, e.details, e.starts_at, l.name AS league_name, "
+        "l.description AS league_description "
+        "FROM webadmin.calendar_events e "
+        "JOIN webadmin.leagues l ON l.id = e.league_id "
+        "WHERE e.starts_at >= now() ORDER BY e.starts_at, e.id"
+    )
+    if limit is not None:
+        cur.execute(sql + " LIMIT %s", (limit,))
+    else:
+        cur.execute(sql)
+    return cur.fetchall()
+
+
 def _live_servers() -> list[dict]:
     """The TSU servers Steam currently lists, most players first."""
     servers: list[dict] = []
@@ -301,6 +317,7 @@ def index():
         )
         elo_top = [{**r, "flag_code": _flag_code(r["driver_flag"])}
                    for r in cur.fetchall()]
+        upcoming_calendar = _upcoming_calendar(cur, 3)
 
     # server list -----------------------------------------------------------
     servers = _live_servers()
@@ -316,12 +333,23 @@ def index():
         hotlap=hotlap,
         hotlap_top=hotlap_top,
         elo_top=elo_top,
+        upcoming_calendar=upcoming_calendar,
+        utc=timezone.utc,
         summary_events=summary_events,
         summary_heats=summary_heats,
         summary_casual=summary_casual,
         summary_career=summary_career,
         summary_topdown=summary_topdown,
     )
+
+
+@main_bp.route("/calendar")
+def calendar():
+    """Upcoming league races, open to every visitor."""
+    with db_pool.get_conn().cursor(row_factory=psycopg.rows.dict_row) as cur:
+        events = _upcoming_calendar(cur)
+    return render_template("calendar.html", events=events,
+                           utc=timezone.utc)
 
 
 # --------------------------------------------------------------------------- #

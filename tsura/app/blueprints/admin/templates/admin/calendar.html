@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Calendar — Admin — TSURA{% endblock %}
+{% block content %}
+<a href="{{ url_for('admin.index') }}" class="btn btn-outline-light btn-sm mb-3">← Admin</a>
+<div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+  <div>
+    <h1 class="mb-1">Race calendar</h1>
+    <p class="text-secondary mb-0">Schedule races for any league. All times use your device's time zone.</p>
+  </div>
+  <a href="{{ url_for('main.calendar') }}" class="btn btn-outline-light ms-auto">View public calendar</a>
+</div>
+
+<div class="row g-4 mb-5">
+  <div class="col-12 col-xl-7">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header"><h2 class="h5 mb-0" id="event-form-title">Add race event</h2></div>
+      <div class="card-body">
+        {% if not leagues %}<p class="text-warning">Create a league first, then you can schedule its races.</p>{% endif %}
+        <form method="post" id="event-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="action" value="create_event" id="event-action">
+          <input type="hidden" name="event_id" id="event-id">
+          <input type="hidden" name="timezone" value="UTC" id="event-timezone">
+          <input type="hidden" name="utc_offset" id="event-offset">
+          <div class="row g-3">
+            <div class="col-12 col-md-5">
+              <label for="event-league" class="form-label">League</label>
+              <select id="event-league" name="league_id" class="form-select" required>
+                <option value="">Choose a league</option>
+                {% for league in leagues %}<option value="{{ league.id }}">{{ league.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-7">
+              <label for="event-details" class="form-label">Race details</label>
+              <input id="event-details" name="details" type="text" class="form-control" maxlength="160" required placeholder="Round 3 — Silverstone">
+              <div class="form-text">A short English title including the race or venue.</div>
+            </div>
+            <div class="col-12 col-md-7">
+              <label for="event-start" class="form-label">Date and time</label>
+              <input id="event-start" name="local_start" type="datetime-local" class="form-control" step="60" required>
+              <div class="form-text">Your device time zone: <span id="calendar-zone">UTC</span>. Weekly races keep this local clock time through daylight saving changes.</div>
+            </div>
+            <div class="col-12 col-md-5" id="repeat-wrap">
+              <label for="repeat-count" class="form-label">Number of weekly races</label>
+              <input id="repeat-count" name="repeat_count" type="number" class="form-control" min="1" max="26" value="1" required>
+              <div class="form-text">1 creates a single event; 6 creates six, one week apart.</div>
+            </div>
+          </div>
+          <div class="d-flex gap-2 mt-4">
+            <button class="btn btn-warm-red" type="submit" {% if not leagues %}disabled{% endif %} id="event-submit">Create event(s)</button>
+            <button class="btn btn-outline-secondary d-none" type="button" id="cancel-event-edit">Cancel edit</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-5">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header"><h2 class="h5 mb-0" id="league-form-title">Add league</h2></div>
+      <div class="card-body">
+        <form method="post" id="league-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="action" value="create_league" id="league-action">
+          <input type="hidden" name="league_id" id="league-id">
+          <label for="league-name" class="form-label">League name</label>
+          <input id="league-name" name="name" type="text" class="form-control mb-3" maxlength="80" required placeholder="Saturday Championship">
+          <label for="league-description" class="form-label">Short description</label>
+          <textarea id="league-description" name="description" class="form-control" maxlength="240" rows="3" placeholder="Weekly races with a rotating car and track selection."></textarea>
+          <div class="form-text">Up to 240 characters. Visitors can read it from the league name in the calendar.</div>
+          <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-warm-red" type="submit" id="league-submit">Create league</button>
+            <button class="btn btn-outline-secondary d-none" type="button" id="cancel-league-edit">Cancel edit</button>
+          </div>
+        </form>
+        {% if leagues %}
+        <hr class="border-secondary">
+        <h3 class="h6">Leagues</h3>
+        <ul class="list-group list-group-flush">
+          {% for league in leagues %}
+          <li class="list-group-item bg-dark text-white border-secondary d-flex gap-2 align-items-start">
+            <div class="flex-grow-1"><strong>{{ league.name }}</strong>{% if league.description %}<div class="small text-secondary">{{ league.description }}</div>{% endif %}</div>
+            <button type="button" class="btn btn-outline-light btn-sm edit-league" data-id="{{ league.id }}" data-name="{{ league.name }}" data-description="{{ league.description }}">Edit</button>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% macro event_table(events) %}
+<div class="table-responsive">
+  <table class="table table-dark table-hover align-middle mb-0 calendar-table">
+    <thead><tr><th>Date and time</th><th>League</th><th>Race details</th><th data-nosort class="text-end">Actions</th></tr></thead>
+    <tbody>
+      {% for event in events %}
+      <tr>
+        <td class="tnum" data-sort="{{ event.starts_at.timestamp() }}"><time datetime="{{ event.starts_at.isoformat() }}" data-local-time="{{ event.starts_at.isoformat() }}">{{ event.starts_at.astimezone(utc).strftime('%a %d %b %Y, %H:%M UTC') }}</time></td>
+        <td>{{ event.league_name }}</td>
+        <td>{{ event.details }}</td>
+        <td class="text-end text-nowrap">
+          <button type="button" class="btn btn-outline-light btn-sm edit-event" data-id="{{ event.id }}" data-league="{{ event.league_id }}" data-details="{{ event.details }}" data-start="{{ event.starts_at.isoformat() }}">Edit</button>
+          <form method="post" class="d-inline" onsubmit="return confirm('Delete this race event?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="delete_event">
+            <input type="hidden" name="event_id" value="{{ event.id }}">
+            <button class="btn btn-outline-danger btn-sm" type="submit">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}<tr><td colspan="4" class="text-secondary">No races here yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+<h2 class="h4">Upcoming races</h2>
+<div class="card bg-dark border-secondary mb-4">{{ event_table(upcoming) }}</div>
+<h2 class="h4">Recent races</h2>
+<div class="card bg-dark border-secondary">{{ event_table(past) }}</div>
+{% endblock %}
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/calendar-admin.js') }}"></script>
+{% endblock %}

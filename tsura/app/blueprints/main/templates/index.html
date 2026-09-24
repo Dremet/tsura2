@@ -93,8 +93,29 @@
         {{ server_summary("Topdown", "bg-info text-dark", "Topdown", summary_topdown, "topdown") }}
     </div>
 
-    <!-- RIGHT column: ELO top list + currently active servers -->
+    <!-- RIGHT column: upcoming races, ELO top list + currently active servers -->
     <div class="col-lg-4">
+        <div class="card mb-4 bg-dark border-secondary">
+            <div class="card-header bg-danger d-flex align-items-center">
+                <strong>Next league races</strong>
+                <a href="{{ url_for('main.calendar') }}" class="ms-auto btn btn-light btn-sm">Show more</a>
+            </div>
+            <div class="card-body p-0">
+                {% if upcoming_calendar %}
+                <ul class="list-group list-group-flush">
+                    {% for event in upcoming_calendar %}
+                    <li class="list-group-item bg-dark text-white border-secondary">
+                        <div class="fw-bold">{{ event.league_name }}</div>
+                        <div class="small">{{ event.details }}</div>
+                        <time class="small text-secondary tnum" datetime="{{ event.starts_at.isoformat() }}" data-local-time="{{ event.starts_at.isoformat() }}">{{ event.starts_at.astimezone(utc).strftime('%a %d %b %Y, %H:%M UTC') }}</time>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="card-body text-secondary small">No upcoming races scheduled.</div>
+                {% endif %}
+            </div>
+        </div>
         {% if elo_top %}
         <div class="card mb-4">
             <div class="card-header bg-danger d-flex align-items-center">

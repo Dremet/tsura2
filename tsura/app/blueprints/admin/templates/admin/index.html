@@ -22,6 +22,18 @@
   {% endfor %}
 
   <div class="col-12 col-sm-6 col-xl-3">
+    <a href="{{ url_for('admin.calendar') }}" class="text-decoration-none">
+      <div class="card h-100 bg-dark border-secondary admin-card"
+           style="border-top: 4px solid #a371f7 !important;">
+        <div class="card-body">
+          <h3 class="card-title" style="color: #a371f7;">Calendar</h3>
+          <p class="card-text text-secondary mb-0">Create leagues and schedule upcoming races.</p>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-12 col-sm-6 col-xl-3">
     <a href="{{ url_for('admin.tracks') }}" class="text-decoration-none">
       <div class="card h-100 bg-dark border-secondary admin-card"
            style="border-top: 4px solid #6ea8fe !important;">
