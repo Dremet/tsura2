@@ -204,7 +204,8 @@ TOPDOWN_CONFIG = "/srv/tsura/server_config/topdown.json"
 
 _CALENDAR_SELECT = (
     "SELECT e.id, e.league_id, e.details, e.starts_at, "
-    "l.name AS league_name, l.description AS league_description "
+    "l.name AS league_name, l.description AS league_description, "
+    "l.color_key AS league_color "
     "FROM webadmin.calendar_events e "
     "JOIN webadmin.leagues l ON l.id = e.league_id "
 )

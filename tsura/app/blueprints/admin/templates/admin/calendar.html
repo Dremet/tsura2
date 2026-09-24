@@ -67,6 +67,17 @@
           <label for="league-description" class="form-label">Short description</label>
           <textarea id="league-description" name="description" class="form-control" maxlength="240" rows="3" placeholder="Weekly races with a rotating car and track selection."></textarea>
           <div class="form-text">Up to 240 characters. Visitors can read it from the league name in the calendar.</div>
+          <fieldset class="mt-3">
+            <legend class="form-label fs-6">League color</legend>
+            <div class="league-color-choices">
+              {% for key, label in color_options %}
+              <label class="league-color-choice calendar-accent-{{ key }}">
+                <input type="radio" name="color_key" value="{{ key }}" {% if loop.first %}checked{% endif %} required>
+                <span class="league-color-dot" aria-hidden="true"></span>{{ label }}
+              </label>
+              {% endfor %}
+            </div>
+          </fieldset>
           <div class="d-flex gap-2 mt-3">
             <button class="btn btn-warm-red" type="submit" id="league-submit">Create league</button>
             <button class="btn btn-outline-secondary d-none" type="button" id="cancel-league-edit">Cancel edit</button>
@@ -78,8 +89,8 @@
         <ul class="list-group list-group-flush">
           {% for league in leagues %}
           <li class="list-group-item bg-dark text-white border-secondary d-flex gap-2 align-items-start">
-            <div class="flex-grow-1"><strong>{{ league.name }}</strong>{% if league.description %}<div class="small text-secondary">{{ league.description }}</div>{% endif %}</div>
-            <button type="button" class="btn btn-outline-light btn-sm edit-league" data-id="{{ league.id }}" data-name="{{ league.name }}" data-description="{{ league.description }}">Edit</button>
+            <div class="flex-grow-1"><strong><span class="league-color-dot calendar-accent-{{ league.color_key }} me-1" aria-hidden="true"></span>{{ league.name }}</strong>{% if league.description %}<div class="small text-secondary">{{ league.description }}</div>{% endif %}</div>
+            <button type="button" class="btn btn-outline-light btn-sm edit-league" data-id="{{ league.id }}" data-name="{{ league.name }}" data-description="{{ league.description }}" data-color="{{ league.color_key }}">Edit</button>
           </li>
           {% endfor %}
         </ul>

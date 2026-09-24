@@ -10,6 +10,13 @@ from .routes import _csrf_ok, _cur, user_admin_servers
 from ...calendar_time import weekly_starts
 from ...extensions import db_pool
 
+COLOR_OPTIONS = (
+    ("coral", "Coral"),
+    ("teal", "Teal"),
+    ("gold", "Gold"),
+    ("violet", "Violet"),
+)
+
 
 def _required_text(field, label, maximum):
     value = (request.form.get(field) or "").strip()
@@ -54,18 +61,22 @@ def calendar():
                 if action in ("create_league", "update_league"):
                     name = _required_text("name", "League name", 80)
                     description = (request.form.get("description") or "").strip()
+                    color_key = request.form.get("color_key", "")
                     if len(description) > 240:
                         raise ValueError("League description is limited to 240 characters.")
+                    if color_key not in dict(COLOR_OPTIONS):
+                        raise ValueError("Choose one of the available league colors.")
                     if action == "create_league":
                         cur.execute(
-                            "INSERT INTO webadmin.leagues (name, description, created_by) "
-                            "VALUES (%s, %s, %s)",
-                            (name, description, g.current_steam_id))
+                            "INSERT INTO webadmin.leagues "
+                            "(name, description, color_key, created_by) "
+                            "VALUES (%s, %s, %s, %s)",
+                            (name, description, color_key, g.current_steam_id))
                     else:
                         cur.execute(
                             "UPDATE webadmin.leagues SET name = %s, description = %s, "
-                            "updated_at = now() WHERE id = %s",
-                            (name, description, _id("league_id")))
+                            "color_key = %s, updated_at = now() WHERE id = %s",
+                            (name, description, color_key, _id("league_id")))
                         if not cur.rowcount:
                             raise ValueError("League no longer exists.")
                     message = "League saved."
@@ -120,7 +131,8 @@ def calendar():
         return redirect(url_for("admin.calendar"))
 
     with _cur() as cur:
-        cur.execute("SELECT id, name, description FROM webadmin.leagues ORDER BY lower(name)")
+        cur.execute("SELECT id, name, description, color_key "
+                    "FROM webadmin.leagues ORDER BY lower(name)")
         leagues = cur.fetchall()
         event_sql = (
             "SELECT e.id, e.league_id, e.details, e.starts_at, l.name AS league_name "
@@ -131,4 +143,5 @@ def calendar():
         cur.execute(event_sql + "WHERE e.starts_at < now() ORDER BY e.starts_at DESC LIMIT 20")
         past = cur.fetchall()
     return render_template("admin/calendar.html", leagues=leagues,
+                           color_options=COLOR_OPTIONS,
                            upcoming=upcoming, past=past, utc=timezone.utc)

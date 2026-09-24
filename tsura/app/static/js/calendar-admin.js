@@ -68,6 +68,9 @@ document.addEventListener("DOMContentLoaded", () => {
       $("league-id").value = button.dataset.id;
       $("league-name").value = button.dataset.name;
       $("league-description").value = button.dataset.description;
+      document.querySelectorAll('input[name="color_key"]').forEach((input) => {
+        input.checked = input.value === button.dataset.color;
+      });
       $("league-form-title").textContent = "Edit league";
       $("league-submit").textContent = "Save changes";
       $("cancel-league-edit").classList.remove("d-none");

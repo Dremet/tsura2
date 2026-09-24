@@ -26,7 +26,7 @@
   {% if events %}
   <div class="calendar-event-list">
     {% for event in events %}
-    <article class="calendar-event calendar-accent-{{ (event.league_id - 1) % 4 }}">
+    <article class="calendar-event calendar-accent-{{ event.league_color }}">
       <div class="calendar-date-tile" data-calendar-date="{{ event.starts_at.isoformat() }}" aria-hidden="true">
         <span class="calendar-date-month" data-calendar-month>{{ event.starts_at.astimezone(utc).strftime('%b') }}</span>
         <strong class="calendar-date-day" data-calendar-day>{{ event.starts_at.astimezone(utc).strftime('%d') }}</strong>
@@ -68,7 +68,7 @@
         {% for event in recent_events %}
         <tr>
           <td class="tnum" data-sort="{{ event.starts_at.timestamp() }}"><time datetime="{{ event.starts_at.isoformat() }}" data-local-time="{{ event.starts_at.isoformat() }}">{{ event.starts_at.astimezone(utc).strftime('%a %d %b %Y, %H:%M UTC') }}</time></td>
-          <td><button type="button" class="calendar-history-league calendar-accent-{{ (event.league_id - 1) % 4 }}" data-bs-toggle="tooltip" title="{{ event.league_description or 'No league description yet.' }}" aria-label="{{ event.league_name }}: {{ event.league_description or 'No league description yet.' }}">{{ event.league_name }}</button></td>
+          <td><button type="button" class="calendar-history-league calendar-accent-{{ event.league_color }}" data-bs-toggle="tooltip" title="{{ event.league_description or 'No league description yet.' }}" aria-label="{{ event.league_name }}: {{ event.league_description or 'No league description yet.' }}">{{ event.league_name }}</button></td>
           <td>{{ event.details }}</td>
         </tr>
         {% else %}

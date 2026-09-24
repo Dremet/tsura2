@@ -164,10 +164,34 @@ body>.container-fluid {
 .calendar-zone strong { margin-left: .35rem; color: #fff; }
 
 .calendar-event-list { display: grid; gap: .9rem; }
-.calendar-accent-0 { --calendar-accent: #ff6658; --calendar-soft: rgba(255, 102, 88, .16); }
-.calendar-accent-1 { --calendar-accent: #42cbbb; --calendar-soft: rgba(66, 203, 187, .16); }
-.calendar-accent-2 { --calendar-accent: #ffcd61; --calendar-soft: rgba(255, 205, 97, .15); }
-.calendar-accent-3 { --calendar-accent: #aa92ff; --calendar-soft: rgba(170, 146, 255, .16); }
+.calendar-accent-coral { --calendar-accent: #ff6658; --calendar-soft: rgba(255, 102, 88, .16); }
+.calendar-accent-teal { --calendar-accent: #42cbbb; --calendar-soft: rgba(66, 203, 187, .16); }
+.calendar-accent-gold { --calendar-accent: #ffcd61; --calendar-soft: rgba(255, 205, 97, .15); }
+.calendar-accent-violet { --calendar-accent: #aa92ff; --calendar-soft: rgba(170, 146, 255, .16); }
+
+.league-color-choices { display: flex; flex-wrap: wrap; gap: .5rem; }
+.league-color-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .45rem .65rem;
+    border: 1px solid #5a5d68;
+    border-radius: .5rem;
+    background: #252733;
+    cursor: pointer;
+    font-size: .85rem;
+}
+
+.league-color-choice:has(input:checked) { border-color: var(--calendar-accent); background: var(--calendar-soft); }
+.league-color-choice input { margin: 0; accent-color: var(--calendar-accent); }
+.league-color-dot {
+    display: inline-block;
+    width: .8rem;
+    height: .8rem;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--calendar-accent);
+}
 
 .calendar-event {
     display: grid;
@@ -319,6 +343,14 @@ body>.container-fluid {
 .home-calendar-time { color: #c4c8d1; font-size: .72rem; }
 .home-calendar-empty { padding: 1.5rem 1rem; color: #c4c8d1; font-size: .9rem; text-align: center; }
 .home-calendar-empty span { display: block; margin-bottom: .4rem; font-size: 1.8rem; }
+.home-calendar-note {
+    padding: .7rem 1rem;
+    border-top: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(255, 255, 255, .025);
+    color: #b5b8c3;
+    font-size: .72rem;
+    line-height: 1.45;
+}
 
 @media (max-width: 575.98px) {
     .calendar-hero { flex-direction: column; }

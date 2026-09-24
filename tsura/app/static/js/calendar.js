@@ -1,12 +1,13 @@
 document.addEventListener("DOMContentLoaded", () => {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const formatter = new Intl.DateTimeFormat(undefined, {
-    weekday: "short", year: "numeric", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit", timeZoneName: "short"
+  const english = "en-GB";
+  const formatter = new Intl.DateTimeFormat(english, {
+    weekday: "short", year: "numeric", month: "short", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short"
   });
-  const compactFormatter = new Intl.DateTimeFormat(undefined, {
-    weekday: "short", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit", timeZoneName: "short"
+  const compactFormatter = new Intl.DateTimeFormat(english, {
+    weekday: "short", month: "short", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short"
   });
   document.querySelectorAll("[data-calendar-zone]").forEach((element) => {
     element.textContent = zone;
@@ -19,9 +20,9 @@ document.addEventListener("DOMContentLoaded", () => {
       element.setAttribute("title", zone);
     }
   });
-  const day = new Intl.DateTimeFormat(undefined, {day: "2-digit"});
-  const month = new Intl.DateTimeFormat(undefined, {month: "short"});
-  const weekday = new Intl.DateTimeFormat(undefined, {weekday: "short"});
+  const day = new Intl.DateTimeFormat(english, {day: "2-digit"});
+  const month = new Intl.DateTimeFormat(english, {month: "short"});
+  const weekday = new Intl.DateTimeFormat(english, {weekday: "short"});
   document.querySelectorAll("[data-calendar-date]").forEach((element) => {
     const instant = new Date(element.dataset.calendarDate);
     if (Number.isNaN(instant.getTime())) return;
