@@ -202,18 +202,29 @@ TOPDOWN_SERVER_NAME = "Topdown Racing"
 TOPDOWN_CONFIG = "/srv/tsura/server_config/topdown.json"
 
 
+_CALENDAR_SELECT = (
+    "SELECT e.id, e.league_id, e.details, e.starts_at, "
+    "l.name AS league_name, l.description AS league_description "
+    "FROM webadmin.calendar_events e "
+    "JOIN webadmin.leagues l ON l.id = e.league_id "
+)
+
+
 def _upcoming_calendar(cur, limit=None):
-    sql = (
-        "SELECT e.id, e.details, e.starts_at, l.name AS league_name, "
-        "l.description AS league_description "
-        "FROM webadmin.calendar_events e "
-        "JOIN webadmin.leagues l ON l.id = e.league_id "
-        "WHERE e.starts_at >= now() ORDER BY e.starts_at, e.id"
-    )
+    sql = _CALENDAR_SELECT + "WHERE e.starts_at >= now() ORDER BY e.starts_at, e.id"
     if limit is not None:
         cur.execute(sql + " LIMIT %s", (limit,))
     else:
         cur.execute(sql)
+    return cur.fetchall()
+
+
+def _recent_calendar(cur, limit=12):
+    cur.execute(
+        _CALENDAR_SELECT +
+        "WHERE e.starts_at < now() ORDER BY e.starts_at DESC, e.id DESC LIMIT %s",
+        (limit,),
+    )
     return cur.fetchall()
 
 
@@ -348,8 +359,9 @@ def calendar():
     """Upcoming league races, open to every visitor."""
     with db_pool.get_conn().cursor(row_factory=psycopg.rows.dict_row) as cur:
         events = _upcoming_calendar(cur)
+        recent_events = _recent_calendar(cur)
     return render_template("calendar.html", events=events,
-                           utc=timezone.utc)
+                           recent_events=recent_events, utc=timezone.utc)
 
 
 # --------------------------------------------------------------------------- #

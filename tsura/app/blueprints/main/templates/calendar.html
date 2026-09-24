@@ -1,36 +1,81 @@
 {% extends "base.html" %}
 {% block title %}Calendar — TSURA{% endblock %}
 {% block content %}
-<div class="d-flex flex-wrap align-items-center gap-3 mb-4">
-  <div>
-    <h1 class="mb-1">Race calendar</h1>
-    <p class="text-secondary mb-0">Upcoming league races. Times are shown in your device's time zone.</p>
+<section class="calendar-hero mb-5">
+  <div class="calendar-hero-content">
+    <p class="calendar-eyebrow mb-2">TSURA race nights</p>
+    <h1 class="display-6 mb-3">Race calendar<span class="text-danger">.</span></h1>
+    <p class="calendar-hero-copy mb-4">Find the next league race and get ready for the grid. Dates and times automatically follow your device's time zone.</p>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <span class="calendar-count">{{ events|length }} upcoming {{ 'race' if events|length == 1 else 'races' }}</span>
+      <span class="calendar-zone">Time zone: <strong data-calendar-zone>UTC</strong></span>
+    </div>
   </div>
-  {% if admin_servers %}<a class="btn btn-outline-warning ms-auto" href="{{ url_for('admin.calendar') }}">Edit calendar</a>{% endif %}
-</div>
+  {% if admin_servers %}<a class="btn btn-outline-light calendar-edit" href="{{ url_for('admin.calendar') }}">Edit calendar</a>{% endif %}
+</section>
 
-{% if events %}
-<div class="card bg-dark border-secondary">
-  <div class="table-responsive">
+<section aria-labelledby="upcoming-races" class="calendar-section">
+  <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+    <div>
+      <p class="calendar-eyebrow mb-1">On the horizon</p>
+      <h2 id="upcoming-races" class="h3 mb-0">Upcoming races</h2>
+    </div>
+    <span class="text-secondary small ms-auto">Soonest first</span>
+  </div>
+
+  {% if events %}
+  <div class="calendar-event-list">
+    {% for event in events %}
+    <article class="calendar-event calendar-accent-{{ (event.league_id - 1) % 4 }}">
+      <div class="calendar-date-tile" data-calendar-date="{{ event.starts_at.isoformat() }}" aria-hidden="true">
+        <span class="calendar-date-month" data-calendar-month>{{ event.starts_at.astimezone(utc).strftime('%b') }}</span>
+        <strong class="calendar-date-day" data-calendar-day>{{ event.starts_at.astimezone(utc).strftime('%d') }}</strong>
+        <span class="calendar-date-weekday" data-calendar-weekday>{{ event.starts_at.astimezone(utc).strftime('%a') }}</span>
+      </div>
+      <div class="calendar-event-info">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+          <button type="button" class="calendar-league-chip" data-bs-toggle="tooltip" title="{{ event.league_description or 'No league description yet.' }}" aria-label="{{ event.league_name }}: {{ event.league_description or 'No league description yet.' }}">{{ event.league_name }}</button>
+          {% if loop.first %}<span class="calendar-next-badge">Next race</span>{% endif %}
+        </div>
+        <h3 class="h4 mb-2">{{ event.details }}</h3>
+        <time class="calendar-event-time tnum" datetime="{{ event.starts_at.isoformat() }}" data-local-time="{{ event.starts_at.isoformat() }}">{{ event.starts_at.astimezone(utc).strftime('%a %d %b %Y, %H:%M UTC') }}</time>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="calendar-empty">
+    <span class="calendar-empty-icon" aria-hidden="true">🏁</span>
+    <h3 class="h4 mb-2">The grid is quiet for now</h3>
+    <p class="text-secondary mb-0">New race dates will appear here as soon as a league schedules them.</p>
+    {% if admin_servers %}<a class="btn btn-warm-red mt-3" href="{{ url_for('admin.calendar') }}">Schedule a race</a>{% endif %}
+  </div>
+  {% endif %}
+</section>
+
+<section aria-labelledby="recent-races" class="calendar-section mt-5">
+  <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+    <div>
+      <p class="calendar-eyebrow mb-1">Looking back</p>
+      <h2 id="recent-races" class="h3 mb-0">Recent races</h2>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm ms-auto" href="{{ url_for('main.races') }}">See race results →</a>
+  </div>
+  <div class="calendar-history-card table-responsive">
     <table class="table table-dark table-hover align-middle mb-0 calendar-table">
       <thead><tr><th>Date and time</th><th>League</th><th>Race details</th></tr></thead>
       <tbody>
-        {% for event in events %}
+        {% for event in recent_events %}
         <tr>
-          <td class="tnum" data-sort="{{ event.starts_at.timestamp() }}">
-            <time datetime="{{ event.starts_at.isoformat() }}" data-local-time="{{ event.starts_at.isoformat() }}">{{ event.starts_at.astimezone(utc).strftime('%a %d %b %Y, %H:%M UTC') }}</time>
-          </td>
-          <td>
-            <button type="button" class="btn btn-link link-light p-0 text-start fw-bold" data-bs-toggle="tooltip" title="{{ event.league_description or 'No league description yet.' }}" aria-label="{{ event.league_name }}: {{ event.league_description or 'No league description yet.' }}">{{ event.league_name }}</button>
-          </td>
+          <td class="tnum" data-sort="{{ event.starts_at.timestamp() }}"><time datetime="{{ event.starts_at.isoformat() }}" data-local-time="{{ event.starts_at.isoformat() }}">{{ event.starts_at.astimezone(utc).strftime('%a %d %b %Y, %H:%M UTC') }}</time></td>
+          <td><button type="button" class="calendar-history-league calendar-accent-{{ (event.league_id - 1) % 4 }}" data-bs-toggle="tooltip" title="{{ event.league_description or 'No league description yet.' }}" aria-label="{{ event.league_name }}: {{ event.league_description or 'No league description yet.' }}">{{ event.league_name }}</button></td>
           <td>{{ event.details }}</td>
         </tr>
+        {% else %}
+        <tr><td colspan="3" class="text-secondary py-4">No recent league races to show yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-</div>
-{% else %}
-<div class="card bg-dark border-secondary"><div class="card-body text-secondary">No upcoming races have been scheduled yet.</div></div>
-{% endif %}
+</section>
 {% endblock %}
