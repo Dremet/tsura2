@@ -265,6 +265,60 @@ body>.container-fluid {
 .calendar-history-card td { border-bottom-color: #393b48; }
 .calendar-history-card tbody tr:last-child td { border-bottom: 0; }
 
+.calendar-view-switch {
+    display: inline-flex;
+    gap: .2rem;
+    padding: .25rem;
+    border: 1px solid #4c4d59;
+    border-radius: .7rem;
+    background: #20222d;
+}
+.calendar-view-link {
+    padding: .5rem .9rem;
+    border-radius: .45rem;
+    color: #c9cbd3;
+    font-weight: 700;
+    text-decoration: none;
+}
+.calendar-view-link:hover, .calendar-view-link:focus-visible { color: #fff; background: #383a47; }
+.calendar-view-link.is-active { color: #fff; background: #a73532; }
+.calendar-month-toolbar { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1rem; }
+.calendar-month-navigation { display: flex; flex-wrap: wrap; gap: .5rem; }
+.calendar-month-scroll { overflow-x: auto; border: 1px solid #4c4d59; border-radius: .85rem; }
+.calendar-month-scroll:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.calendar-month-grid { width: 100%; min-width: 840px; table-layout: fixed; border-collapse: collapse; background: #20222d; }
+.calendar-month-grid th {
+    padding: .7rem .45rem;
+    border-right: 1px solid #3d3f4b;
+    border-bottom: 1px solid #4c4d59;
+    color: #d3d0dd;
+    font-size: .8rem;
+    text-align: center;
+}
+.calendar-month-grid td { width: 14.2857%; height: 8rem; padding: 0; border-right: 1px solid #3d3f4b; border-bottom: 1px solid #3d3f4b; vertical-align: top; }
+.calendar-month-grid th:last-child, .calendar-month-grid td:last-child { border-right: 0; }
+.calendar-month-grid tbody tr:last-child td { border-bottom: 0; }
+.calendar-month-day.is-outside { background: #1a1c26; }
+.calendar-month-day-inner { display: flex; flex-direction: column; min-height: 8rem; padding: .45rem; }
+.calendar-month-day-number { align-self: flex-end; padding: .15rem .35rem; border-radius: 999px; font-size: .85rem; font-weight: 700; }
+.calendar-month-day.is-outside .calendar-month-day-number { color: #8f929d; }
+.calendar-month-day.is-today .calendar-month-day-number { background: #a73532; color: #fff; }
+.calendar-month-day-events { display: grid; gap: .35rem; margin-top: .35rem; }
+.calendar-month-event {
+    display: grid;
+    gap: .1rem;
+    min-width: 0;
+    padding: .4rem .5rem;
+    border-left: 3px solid var(--calendar-accent);
+    border-radius: .3rem;
+    background: var(--calendar-soft);
+    font-size: .72rem;
+    line-height: 1.3;
+}
+.calendar-month-event-league { color: var(--calendar-accent); font-weight: 700; overflow-wrap: anywhere; }
+.calendar-month-event-details { overflow-wrap: anywhere; }
+.calendar-month-event-time { color: #c9cbd3; }
+
 /* Compact calendar preview on the homepage */
 .home-calendar-card {
     overflow: hidden;

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar as calendar_module
 import hashlib
 import hmac
 import json
@@ -9,7 +10,7 @@ import os
 import re
 import time
 from collections import defaultdict, OrderedDict
-from datetime import timezone
+from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from typing import List
 
 import psycopg
@@ -230,6 +231,19 @@ def _recent_calendar(cur, limit=12):
     return cur.fetchall()
 
 
+def _month_calendar(cur, start: date, end: date):
+    """Events in the visible weeks, with a day of padding for local time zones."""
+    lower = datetime.combine(start - timedelta(days=1), datetime_time.min, timezone.utc)
+    upper = datetime.combine(end + timedelta(days=1), datetime_time.min, timezone.utc)
+    cur.execute(
+        _CALENDAR_SELECT +
+        "WHERE e.starts_at >= %s AND e.starts_at < %s "
+        "ORDER BY e.starts_at, e.id",
+        (lower, upper),
+    )
+    return cur.fetchall()
+
+
 def _live_servers() -> list[dict]:
     """The TSU servers Steam currently lists, most players first."""
     servers: list[dict] = []
@@ -358,12 +372,46 @@ def index():
 
 @main_bp.route("/calendar")
 def calendar():
-    """Upcoming league races, open to every visitor."""
+    """Race list and browsable month grid, open to every visitor."""
+    view = "month" if request.args.get("view") == "month" else "list"
+    month_value = request.args.get("month", "")
+    try:
+        selected_month = datetime.strptime(month_value, "%Y-%m").date()
+        if not 1900 <= selected_month.year <= 2100:
+            raise ValueError
+    except ValueError:
+        selected_month = datetime.now(timezone.utc).date().replace(day=1)
+
+    weeks = calendar_module.Calendar(firstweekday=0).monthdatescalendar(
+        selected_month.year, selected_month.month)
+    month_start = weeks[0][0]
+    month_end = weeks[-1][-1] + timedelta(days=1)
+    previous_month = (selected_month - timedelta(days=1)).replace(day=1)
+    next_month = month_end.replace(day=1)
+
     with db_pool.get_conn().cursor(row_factory=psycopg.rows.dict_row) as cur:
-        events = _upcoming_calendar(cur)
-        recent_events = _recent_calendar(cur)
-    return render_template("calendar.html", events=events,
-                           recent_events=recent_events, utc=timezone.utc)
+        if view == "month":
+            month_events = _month_calendar(cur, month_start, month_end)
+            events = []
+            recent_events = []
+        else:
+            events = _upcoming_calendar(cur)
+            recent_events = _recent_calendar(cur)
+            month_events = []
+    month_events_by_day = defaultdict(list)
+    overflow_events = []
+    for event in month_events:
+        event_day = event["starts_at"].astimezone(timezone.utc).date()
+        if month_start <= event_day < month_end:
+            month_events_by_day[event_day].append(event)
+        else:
+            overflow_events.append(event)
+    return render_template(
+        "calendar.html", view=view, events=events,
+        recent_events=recent_events, month_events_by_day=month_events_by_day,
+        overflow_events=overflow_events, weeks=weeks, selected_month=selected_month,
+        previous_month=previous_month, next_month=next_month, utc=timezone.utc,
+    )
 
 
 # --------------------------------------------------------------------------- #

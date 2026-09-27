@@ -1,19 +1,68 @@
 {% extends "base.html" %}
 {% block title %}Calendar — TSURA{% endblock %}
+{% macro month_event(event) %}
+<article class="calendar-month-event calendar-accent-{{ event.league_color }}" data-month-event data-event-start="{{ event.starts_at.isoformat() }}">
+  <span class="calendar-month-event-league" title="{{ event.league_description or 'No league description yet.' }}">{{ event.league_name }}</span>
+  <strong class="calendar-month-event-details">{{ event.details }}</strong>
+  <time class="calendar-month-event-time tnum" datetime="{{ event.starts_at.isoformat() }}" data-local-time="{{ event.starts_at.isoformat() }}" data-calendar-time-only>{{ event.starts_at.astimezone(utc).strftime('%H:%M UTC') }}</time>
+</article>
+{% endmacro %}
 {% block content %}
 <section class="calendar-hero mb-5">
   <div class="calendar-hero-content">
     <p class="calendar-eyebrow mb-2">TSURA race nights</p>
     <h1 class="display-6 mb-3">Race calendar</h1>
-    <p class="calendar-hero-copy mb-4">Find upcoming league and one-off races and get ready for the grid. Dates and times automatically follow your device's time zone.</p>
+    <p class="calendar-hero-copy mb-4">Browse league and one-off race dates and get ready for the grid. Dates and times automatically follow your device's time zone.</p>
     <div class="d-flex flex-wrap align-items-center gap-2">
-      <span class="calendar-count">{{ events|length }} upcoming {{ 'race' if events|length == 1 else 'races' }}</span>
+      {% if view == 'list' %}<span class="calendar-count">{{ events|length }} upcoming {{ 'race' if events|length == 1 else 'races' }}</span>{% else %}<span class="calendar-count">Month view</span>{% endif %}
       <span class="calendar-zone">Time zone: <strong data-calendar-zone>UTC</strong></span>
     </div>
   </div>
   {% if admin_servers %}<a class="btn btn-outline-light calendar-edit" href="{{ url_for('admin.calendar') }}">Edit calendar</a>{% endif %}
 </section>
 
+<nav class="calendar-view-switch mb-4" aria-label="Calendar display">
+  <a class="calendar-view-link{{ ' is-active' if view == 'list' else '' }}" href="{{ url_for('main.calendar', view='list', month=selected_month.strftime('%Y-%m')) }}"{% if view == 'list' %} aria-current="page"{% endif %}>List view</a>
+  <a class="calendar-view-link{{ ' is-active' if view == 'month' else '' }}" href="{{ url_for('main.calendar', view='month', month=selected_month.strftime('%Y-%m')) if request.args.get('month') else url_for('main.calendar', view='month') }}"{% if view == 'month' %} aria-current="page"{% endif %}>Month view</a>
+</nav>
+
+{% if view == 'month' %}
+<section class="calendar-section" aria-labelledby="month-heading" data-month-calendar data-month-key="{{ selected_month.strftime('%Y-%m') }}" data-month-is-current="{{ 'true' if not request.args.get('month') else 'false' }}">
+  <div class="calendar-month-toolbar mb-3">
+    <div>
+      <p class="calendar-eyebrow mb-1">Race dates</p>
+      <h2 id="month-heading" class="h3 mb-0">{{ selected_month.strftime('%B %Y') }}</h2>
+    </div>
+    <div class="calendar-month-navigation" aria-label="Browse months">
+      {% if selected_month.year > 1900 or selected_month.month > 1 %}<a class="btn btn-outline-light btn-sm" href="{{ url_for('main.calendar', view='month', month=previous_month.strftime('%Y-%m')) }}" aria-label="Previous month">← Previous</a>{% endif %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.calendar', view='month') }}" data-calendar-today>Today</a>
+      {% if selected_month.year < 2100 or selected_month.month < 12 %}<a class="btn btn-outline-light btn-sm" href="{{ url_for('main.calendar', view='month', month=next_month.strftime('%Y-%m')) }}" aria-label="Next month">Next →</a>{% endif %}
+    </div>
+  </div>
+  <div class="calendar-month-scroll" tabindex="0" aria-label="Monthly race calendar; scroll sideways on small screens">
+    <table class="calendar-month-grid">
+      <thead><tr><th scope="col">Monday</th><th scope="col">Tuesday</th><th scope="col">Wednesday</th><th scope="col">Thursday</th><th scope="col">Friday</th><th scope="col">Saturday</th><th scope="col">Sunday</th></tr></thead>
+      <tbody>
+        {% for week in weeks %}
+        <tr>
+          {% for day in week %}
+          <td class="calendar-month-day{{ ' is-outside' if day.month != selected_month.month else '' }}" data-month-day="{{ day.isoformat() }}">
+            <div class="calendar-month-day-inner">
+              <time class="calendar-month-day-number" datetime="{{ day.isoformat() }}">{{ day.day }}</time>
+              <div class="calendar-month-day-events" data-month-day-events>
+                {% for event in month_events_by_day[day] %}{{ month_event(event) }}{% endfor %}
+              </div>
+            </div>
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div hidden data-month-overflow>{% for event in overflow_events %}{{ month_event(event) }}{% endfor %}</div>
+</section>
+{% else %}
 <section aria-labelledby="upcoming-races" class="calendar-section">
   <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
     <div>
@@ -78,4 +127,5 @@
     </table>
   </div>
 </section>
+{% endif %}
 {% endblock %}
