@@ -300,9 +300,16 @@ body>.container-fluid {
 .calendar-month-grid tbody tr:last-child td { border-bottom: 0; }
 .calendar-month-day.is-outside { background: #1a1c26; }
 .calendar-month-day-inner { display: flex; flex-direction: column; min-height: 8rem; padding: .45rem; }
-.calendar-month-day-number { align-self: flex-end; padding: .15rem .35rem; border-radius: 999px; font-size: .85rem; font-weight: 700; }
+.calendar-month-day-heading { display: flex; align-items: center; justify-content: space-between; gap: .2rem; }
+.calendar-month-today-label { display: none; color: #fff; font-size: .65rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.calendar-month-day-number { margin-left: auto; padding: .15rem .35rem; border-radius: 999px; font-size: .85rem; font-weight: 700; }
 .calendar-month-day.is-outside .calendar-month-day-number { color: #8f929d; }
-.calendar-month-day.is-today .calendar-month-day-number { background: #a73532; color: #fff; }
+.calendar-month-day.is-today .calendar-month-day-inner {
+    background: linear-gradient(145deg, rgba(255, 102, 88, .2), rgba(255, 102, 88, .05) 70%);
+    box-shadow: inset 0 0 0 2px #ff8b7f;
+}
+.calendar-month-day.is-today .calendar-month-today-label { display: inline; }
+.calendar-month-day.is-today .calendar-month-day-number { background: #ff6658; color: #191b24; }
 .calendar-month-day-events { display: grid; gap: .35rem; margin-top: .35rem; }
 .calendar-month-event {
     display: grid;

@@ -373,14 +373,15 @@ def index():
 @main_bp.route("/calendar")
 def calendar():
     """Race list and browsable month grid, open to every visitor."""
-    view = "month" if request.args.get("view") == "month" else "list"
+    view = "list" if request.args.get("view") == "list" else "month"
+    today_utc = datetime.now(timezone.utc).date()
     month_value = request.args.get("month", "")
     try:
         selected_month = datetime.strptime(month_value, "%Y-%m").date()
         if not 1900 <= selected_month.year <= 2100:
             raise ValueError
     except ValueError:
-        selected_month = datetime.now(timezone.utc).date().replace(day=1)
+        selected_month = today_utc.replace(day=1)
 
     weeks = calendar_module.Calendar(firstweekday=0).monthdatescalendar(
         selected_month.year, selected_month.month)
@@ -410,7 +411,8 @@ def calendar():
         "calendar.html", view=view, events=events,
         recent_events=recent_events, month_events_by_day=month_events_by_day,
         overflow_events=overflow_events, weeks=weeks, selected_month=selected_month,
-        previous_month=previous_month, next_month=next_month, utc=timezone.utc,
+        previous_month=previous_month, next_month=next_month,
+        today_utc=today_utc, utc=timezone.utc,
     )
 
 

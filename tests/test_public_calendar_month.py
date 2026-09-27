@@ -65,7 +65,7 @@ class PublicCalendarMonthTests(unittest.TestCase):
     def test_list_view_stays_available(self):
         conn = CalendarConnection([])
         with patch.object(db_pool, "get_conn", return_value=conn):
-            response = self.app.test_client().get("/calendar")
+            response = self.app.test_client().get("/calendar?view=list")
 
         html = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
@@ -74,6 +74,20 @@ class PublicCalendarMonthTests(unittest.TestCase):
         self.assertIn("Month view", html)
         self.assertNotIn('data-month-calendar', html)
         self.assertEqual(len(conn.queries), 2)
+
+    def test_month_view_is_default_and_marks_today(self):
+        conn = CalendarConnection([])
+        with patch.object(db_pool, "get_conn", return_value=conn):
+            response = self.app.test_client().get("/calendar")
+
+        html = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('data-month-calendar', html)
+        self.assertIn('class="calendar-month-day is-today"', html)
+        self.assertIn('aria-current="date"', html)
+        self.assertIn('view=list', html)
+        self.assertNotIn('id="upcoming-races"', html)
+        self.assertEqual(len(conn.queries), 1)
 
     def test_edge_event_is_available_for_local_day_repositioning(self):
         event = {

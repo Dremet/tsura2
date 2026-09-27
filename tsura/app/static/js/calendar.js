@@ -60,7 +60,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const days = new Map();
   monthCalendar.querySelectorAll("[data-month-day]").forEach((cell) => {
     days.set(cell.dataset.monthDay, cell.querySelector("[data-month-day-events]"));
-    if (cell.dataset.monthDay === todayKey) cell.classList.add("is-today");
+    cell.classList.toggle("is-today", cell.dataset.monthDay === todayKey);
+    const dayNumber = cell.querySelector(".calendar-month-day-number");
+    if (cell.dataset.monthDay === todayKey) {
+      dayNumber.setAttribute("aria-current", "date");
+    } else {
+      dayNumber.removeAttribute("aria-current");
+    }
   });
   const overflow = monthCalendar.querySelector("[data-month-overflow]");
   [...monthCalendar.querySelectorAll("[data-month-event]")]

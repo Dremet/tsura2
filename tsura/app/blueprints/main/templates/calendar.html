@@ -46,9 +46,12 @@
         {% for week in weeks %}
         <tr>
           {% for day in week %}
-          <td class="calendar-month-day{{ ' is-outside' if day.month != selected_month.month else '' }}" data-month-day="{{ day.isoformat() }}">
+          <td class="calendar-month-day{{ ' is-outside' if day.month != selected_month.month else '' }}{{ ' is-today' if day == today_utc else '' }}" data-month-day="{{ day.isoformat() }}">
             <div class="calendar-month-day-inner">
-              <time class="calendar-month-day-number" datetime="{{ day.isoformat() }}">{{ day.day }}</time>
+              <div class="calendar-month-day-heading">
+                <span class="calendar-month-today-label">Today</span>
+                <time class="calendar-month-day-number" datetime="{{ day.isoformat() }}"{% if day == today_utc %} aria-current="date"{% endif %}>{{ day.day }}</time>
+              </div>
               <div class="calendar-month-day-events" data-month-day-events>
                 {% for event in month_events_by_day[day] %}{{ month_event(event) }}{% endfor %}
               </div>
