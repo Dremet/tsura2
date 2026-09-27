@@ -231,7 +231,7 @@ def _recent_calendar(cur, limit=12):
     return cur.fetchall()
 
 
-def _month_calendar(cur, start: date, end: date):
+def _calendar_events_in_range(cur, start: date, end: date):
     """Events in the visible weeks, with a day of padding for local time zones."""
     lower = datetime.combine(start - timedelta(days=1), datetime_time.min, timezone.utc)
     upper = datetime.combine(end + timedelta(days=1), datetime_time.min, timezone.utc)
@@ -372,45 +372,84 @@ def index():
 
 @main_bp.route("/calendar")
 def calendar():
-    """Race list and browsable month grid, open to every visitor."""
-    view = "list" if request.args.get("view") == "list" else "month"
+    """Race list and browsable week and month grids, open to every visitor."""
+    requested_view = request.args.get("view")
+    view = requested_view if requested_view in ("list", "week") else "month"
     today_utc = datetime.now(timezone.utc).date()
+    week_value = request.args.get("week", "")
+    try:
+        week_anchor = date.fromisoformat(week_value)
+        if not 1900 <= week_anchor.year <= 2100:
+            raise ValueError
+    except ValueError:
+        week_anchor = today_utc
+    selected_week = week_anchor - timedelta(days=week_anchor.weekday())
+
     month_value = request.args.get("month", "")
     try:
         selected_month = datetime.strptime(month_value, "%Y-%m").date()
         if not 1900 <= selected_month.year <= 2100:
             raise ValueError
     except ValueError:
-        selected_month = today_utc.replace(day=1)
+        selected_month = (selected_week if view == "week" else today_utc).replace(day=1)
 
-    weeks = calendar_module.Calendar(firstweekday=0).monthdatescalendar(
+    month_weeks = calendar_module.Calendar(firstweekday=0).monthdatescalendar(
         selected_month.year, selected_month.month)
-    month_start = weeks[0][0]
-    month_end = weeks[-1][-1] + timedelta(days=1)
+    month_start = month_weeks[0][0]
+    month_end = month_weeks[-1][-1] + timedelta(days=1)
     previous_month = (selected_month - timedelta(days=1)).replace(day=1)
     next_month = month_end.replace(day=1)
+    week_switch = selected_month - timedelta(days=selected_month.weekday())
+    week_days = [
+        [selected_week + timedelta(days=week * 7 + day) for day in range(7)]
+        for week in range(3)
+    ]
+    previous_week = selected_week - timedelta(weeks=1)
+    next_week = selected_week + timedelta(weeks=1)
+    if week_value and view == "week":
+        week_link = url_for("main.calendar", view="week", week=selected_week.isoformat())
+    elif month_value:
+        week_link = url_for("main.calendar", view="week", week=week_switch.isoformat())
+    else:
+        week_link = url_for("main.calendar", view="week")
+    month_link = (
+        url_for("main.calendar", view="month", month=selected_month.strftime("%Y-%m"))
+        if month_value or (view == "week" and week_value)
+        else url_for("main.calendar")
+    )
 
     with db_pool.get_conn().cursor(row_factory=psycopg.rows.dict_row) as cur:
         if view == "month":
-            month_events = _month_calendar(cur, month_start, month_end)
+            grid_start, grid_end = month_start, month_end
+            grid_events = _calendar_events_in_range(cur, grid_start, grid_end)
+            events = []
+            recent_events = []
+        elif view == "week":
+            grid_start = selected_week
+            grid_end = selected_week + timedelta(weeks=3)
+            grid_events = _calendar_events_in_range(cur, grid_start, grid_end)
             events = []
             recent_events = []
         else:
             events = _upcoming_calendar(cur)
             recent_events = _recent_calendar(cur)
-            month_events = []
-    month_events_by_day = defaultdict(list)
+            grid_events = []
+            grid_start, grid_end = month_start, month_end
+    grid_events_by_day = defaultdict(list)
     overflow_events = []
-    for event in month_events:
+    for event in grid_events:
         event_day = event["starts_at"].astimezone(timezone.utc).date()
-        if month_start <= event_day < month_end:
-            month_events_by_day[event_day].append(event)
+        if grid_start <= event_day < grid_end:
+            grid_events_by_day[event_day].append(event)
         else:
             overflow_events.append(event)
     return render_template(
         "calendar.html", view=view, events=events,
-        recent_events=recent_events, month_events_by_day=month_events_by_day,
-        overflow_events=overflow_events, weeks=weeks, selected_month=selected_month,
+        recent_events=recent_events, grid_events_by_day=grid_events_by_day,
+        overflow_events=overflow_events, month_weeks=month_weeks,
+        week_days=week_days, selected_week=selected_week,
+        previous_week=previous_week, next_week=next_week,
+        selected_month=selected_month, week_link=week_link, month_link=month_link,
         previous_month=previous_month, next_month=next_month,
         today_utc=today_utc, utc=timezone.utc,
     )

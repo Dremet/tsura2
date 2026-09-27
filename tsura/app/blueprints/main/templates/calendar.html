@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Calendar — TSURA{% endblock %}
-{% macro month_event(event) %}
-<article class="calendar-month-event calendar-accent-{{ event.league_color }}" data-month-event data-event-start="{{ event.starts_at.isoformat() }}">
-  <span class="calendar-month-event-league" title="{{ event.league_description or 'No league description yet.' }}">{{ event.league_name }}</span>
-  <strong class="calendar-month-event-details">{{ event.details }}</strong>
-  <time class="calendar-month-event-time tnum" datetime="{{ event.starts_at.isoformat() }}" data-local-time="{{ event.starts_at.isoformat() }}" data-calendar-time-only>{{ event.starts_at.astimezone(utc).strftime('%H:%M UTC') }}</time>
+{% macro grid_event(event) %}
+<article class="calendar-grid-event calendar-accent-{{ event.league_color }}" data-calendar-grid-event data-event-start="{{ event.starts_at.isoformat() }}">
+  <button type="button" class="calendar-grid-event-league" data-bs-toggle="tooltip" data-bs-container="body" title="{{ event.league_description or 'No league description yet.' }}" aria-label="{{ event.league_name }}: {{ event.league_description or 'No league description yet.' }}">{{ event.league_name }}</button>
+  <strong class="calendar-grid-event-details">{{ event.details }}</strong>
+  <time class="calendar-grid-event-time tnum" datetime="{{ event.starts_at.isoformat() }}" data-local-time="{{ event.starts_at.isoformat() }}" data-calendar-time-only>{{ event.starts_at.astimezone(utc).strftime('%H:%M UTC') }}</time>
 </article>
 {% endmacro %}
 {% block content %}
@@ -14,7 +14,7 @@
     <h1 class="display-6 mb-3">Race calendar</h1>
     <p class="calendar-hero-copy mb-4">Browse league and one-off race dates and get ready for the grid. Dates and times automatically follow your device's time zone.</p>
     <div class="d-flex flex-wrap align-items-center gap-2">
-      {% if view == 'list' %}<span class="calendar-count">{{ events|length }} upcoming {{ 'race' if events|length == 1 else 'races' }}</span>{% else %}<span class="calendar-count">Month view</span>{% endif %}
+      {% if view == 'list' %}<span class="calendar-count">{{ events|length }} upcoming {{ 'race' if events|length == 1 else 'races' }}</span>{% else %}<span class="calendar-count">{{ view|capitalize }} view</span>{% endif %}
       <span class="calendar-zone">Time zone: <strong data-calendar-zone>UTC</strong></span>
     </div>
   </div>
@@ -22,8 +22,9 @@
 </section>
 
 <nav class="calendar-view-switch mb-4" aria-label="Calendar display">
+  <a class="calendar-view-link{{ ' is-active' if view == 'month' else '' }}" href="{{ month_link }}"{% if view == 'month' %} aria-current="page"{% endif %}>Month view</a>
+  <a class="calendar-view-link{{ ' is-active' if view == 'week' else '' }}" href="{{ week_link }}"{% if view == 'week' %} aria-current="page"{% endif %}>Week view</a>
   <a class="calendar-view-link{{ ' is-active' if view == 'list' else '' }}" href="{{ url_for('main.calendar', view='list', month=selected_month.strftime('%Y-%m')) }}"{% if view == 'list' %} aria-current="page"{% endif %}>List view</a>
-  <a class="calendar-view-link{{ ' is-active' if view == 'month' else '' }}" href="{{ url_for('main.calendar', view='month', month=selected_month.strftime('%Y-%m')) if request.args.get('month') else url_for('main.calendar', view='month') }}"{% if view == 'month' %} aria-current="page"{% endif %}>Month view</a>
 </nav>
 
 {% if view == 'month' %}
@@ -41,19 +42,26 @@
   </div>
   <div class="calendar-month-scroll" tabindex="0" aria-label="Monthly race calendar; scroll sideways on small screens">
     <table class="calendar-month-grid">
-      <thead><tr><th scope="col">Monday</th><th scope="col">Tuesday</th><th scope="col">Wednesday</th><th scope="col">Thursday</th><th scope="col">Friday</th><th scope="col">Saturday</th><th scope="col">Sunday</th></tr></thead>
+      <thead><tr>
+        {% for weekday in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+        <th scope="col"><span class="calendar-weekday-full">{{ weekday }}</span><span class="calendar-weekday-short">{{ weekday[:3] }}</span></th>
+        {% endfor %}
+      </tr></thead>
       <tbody>
-        {% for week in weeks %}
+        {% for week in month_weeks %}
         <tr>
           {% for day in week %}
-          <td class="calendar-month-day{{ ' is-outside' if day.month != selected_month.month else '' }}{{ ' is-today' if day == today_utc else '' }}" data-month-day="{{ day.isoformat() }}">
+          <td class="calendar-month-day{{ ' is-outside' if day.month != selected_month.month else '' }}{{ ' is-today' if day == today_utc else '' }}" data-month-day="{{ day.isoformat() }}" data-calendar-day="{{ day.isoformat() }}">
             <div class="calendar-month-day-inner">
               <div class="calendar-month-day-heading">
                 <span class="calendar-month-today-label">Today</span>
-                <time class="calendar-month-day-number" datetime="{{ day.isoformat() }}"{% if day == today_utc %} aria-current="date"{% endif %}>{{ day.day }}</time>
+                <time class="calendar-month-day-number" data-calendar-day-number datetime="{{ day.isoformat() }}"{% if day == today_utc %} aria-current="date"{% endif %}>{{ day.day }}</time>
+                <button type="button" class="calendar-month-day-select" data-month-select-day aria-label="Show races for {{ day.strftime('%A %d %B %Y') }}" aria-pressed="false">
+                  <span>{{ day.day }}</span><small class="calendar-month-day-count" data-month-day-count aria-hidden="true">{{ grid_events_by_day[day]|length }}</small>
+                </button>
               </div>
-              <div class="calendar-month-day-events" data-month-day-events>
-                {% for event in month_events_by_day[day] %}{{ month_event(event) }}{% endfor %}
+              <div class="calendar-month-day-events" data-calendar-day-events>
+                {% for event in grid_events_by_day[day] %}{{ grid_event(event) }}{% endfor %}
               </div>
             </div>
           </td>
@@ -63,7 +71,46 @@
       </tbody>
     </table>
   </div>
-  <div hidden data-month-overflow>{% for event in overflow_events %}{{ month_event(event) }}{% endfor %}</div>
+  <section class="calendar-day-agenda" data-month-agenda hidden aria-label="Selected day races">
+    <h3 class="h5 mb-3" data-month-agenda-heading aria-live="polite"></h3>
+    <div class="calendar-day-agenda-events" data-month-agenda-events></div>
+    <p class="text-secondary mb-0" data-month-agenda-empty>No races scheduled for this day.</p>
+  </section>
+  <div hidden data-month-overflow data-calendar-overflow>{% for event in overflow_events %}{{ grid_event(event) }}{% endfor %}</div>
+</section>
+{% elif view == 'week' %}
+<section class="calendar-section" aria-labelledby="week-heading" data-week-calendar data-week-key="{{ selected_week.isoformat() }}" data-week-is-current="{{ 'true' if not request.args.get('week') else 'false' }}">
+  <div class="calendar-month-toolbar mb-3">
+    <div>
+      <p class="calendar-eyebrow mb-1">Race dates</p>
+      <h2 id="week-heading" class="h3 mb-0">Week of {{ selected_week.strftime('%d %B %Y') }}</h2>
+    </div>
+    <div class="calendar-month-navigation" aria-label="Browse weeks">
+      {% if previous_week.year >= 1900 %}<a class="btn btn-outline-light btn-sm" href="{{ url_for('main.calendar', view='week', week=previous_week.isoformat()) }}" aria-label="Previous week">← Previous</a>{% endif %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.calendar', view='week') }}" data-calendar-today>Today</a>
+      {% if next_week.year <= 2100 %}<a class="btn btn-outline-light btn-sm" href="{{ url_for('main.calendar', view='week', week=next_week.isoformat()) }}" aria-label="Next week">Next →</a>{% endif %}
+    </div>
+  </div>
+  <div class="calendar-week-grid">
+    {% for week in week_days %}
+    <section class="calendar-week-panel" aria-label="Week of {{ week[0].strftime('%d %B %Y') }}">
+      <h3 class="calendar-week-panel-title">{{ week[0].strftime('%d %b') }} – {{ week[-1].strftime('%d %b %Y') }}</h3>
+      {% for day in week %}
+      <div class="calendar-week-day{{ ' is-today' if day == today_utc else '' }}" data-calendar-day="{{ day.isoformat() }}">
+        <div class="calendar-week-day-heading">
+          <span class="calendar-week-day-name">{{ day.strftime('%a') }}</span>
+          <time class="calendar-week-day-date" data-calendar-day-number datetime="{{ day.isoformat() }}"{% if day == today_utc %} aria-current="date"{% endif %}>{{ day.strftime('%d %b') }}</time>
+          <span class="calendar-week-today-label">Today</span>
+        </div>
+        <div class="calendar-week-day-events" data-calendar-day-events>
+          {% for event in grid_events_by_day[day] %}{{ grid_event(event) }}{% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </section>
+    {% endfor %}
+  </div>
+  <div hidden data-calendar-overflow>{% for event in overflow_events %}{{ grid_event(event) }}{% endfor %}</div>
 </section>
 {% else %}
 <section aria-labelledby="upcoming-races" class="calendar-section">
@@ -79,6 +126,11 @@
   <div class="calendar-event-list">
     {% for event in events %}
     <article class="calendar-event calendar-accent-{{ event.league_color }}">
+      <div class="calendar-countdown" data-event-countdown="{{ event.starts_at.isoformat() }}" aria-label="Time until race">
+        <span class="calendar-countdown-prefix">In</span>
+        <strong class="calendar-countdown-value tnum" data-countdown-value>—</strong>
+        <span class="calendar-countdown-unit" data-countdown-unit></span>
+      </div>
       <div class="calendar-date-tile" data-calendar-date="{{ event.starts_at.isoformat() }}" aria-hidden="true">
         <span class="calendar-date-month" data-calendar-month>{{ event.starts_at.astimezone(utc).strftime('%b') }}</span>
         <strong class="calendar-date-day" data-calendar-day>{{ event.starts_at.astimezone(utc).strftime('%d') }}</strong>
