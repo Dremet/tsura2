@@ -76,9 +76,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  const calendarGrid = document.querySelector("[data-month-calendar], [data-week-calendar]");
-  if (!calendarGrid) return;
-
   const dateKey = (date) => [
     date.getFullYear(),
     String(date.getMonth() + 1).padStart(2, "0"),
@@ -86,16 +83,30 @@ document.addEventListener("DOMContentLoaded", () => {
   ].join("-");
   const now = new Date();
   const todayKey = dateKey(now);
+  const viewSwitch = document.querySelector("[data-calendar-focus-date]");
+  const setFocusDate = (key) => {
+    if (!viewSwitch) return;
+    viewSwitch.dataset.calendarFocusDate = key;
+    viewSwitch.querySelectorAll(".calendar-view-link").forEach((link) => {
+      const url = new URL(link.href);
+      url.searchParams.set("date", key);
+      link.href = url.toString();
+    });
+  };
+  if (viewSwitch?.dataset.calendarFocusCurrent === "true") setFocusDate(todayKey);
+
+  const calendarGrid = document.querySelector("[data-month-calendar], [data-week-calendar]");
+  if (!calendarGrid) return;
+
   const localMonth = todayKey.slice(0, 7);
   const localMonday = new Date(now.getFullYear(), now.getMonth(),
     now.getDate() - (now.getDay() + 6) % 7);
   const localWeek = dateKey(localMonday);
   const isMonth = calendarGrid.hasAttribute("data-month-calendar");
   const selectionKey = isMonth ? localMonth : localWeek;
-  const param = isMonth ? "month" : "week";
   const todayLink = calendarGrid.querySelector("[data-calendar-today]");
   const todayUrl = new URL(todayLink.href);
-  todayUrl.searchParams.set(param, selectionKey);
+  todayUrl.searchParams.set("date", todayKey);
   todayLink.href = todayUrl.toString();
 
   const isCurrent = isMonth ? calendarGrid.dataset.monthIsCurrent : calendarGrid.dataset.weekIsCurrent;
@@ -166,11 +177,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const button = cell.querySelector("[data-month-select-day]");
     button.querySelector("[data-month-day-count]").textContent = count > 1 ? String(count) : "•";
     button.setAttribute("aria-label", `${button.getAttribute("aria-label")}; ${count} ${count === 1 ? "race" : "races"}`);
-    button.addEventListener("click", () => selectDay(key));
+    button.addEventListener("click", () => {
+      selectDay(key);
+      setFocusDate(key);
+    });
   });
   const monthCells = [...cells.values()].filter((cell) =>
     cell.dataset.calendarDay.startsWith(calendarGrid.dataset.monthKey));
-  const initialCell = monthCells.find((cell) => cell.dataset.calendarDay === todayKey) ||
+  const initialCell = monthCells.find((cell) => cell.dataset.calendarDay === viewSwitch?.dataset.calendarFocusDate) ||
     monthCells.find((cell) => cell.classList.contains("has-events")) || monthCells[0];
   selectDay(initialCell.dataset.calendarDay);
   agenda.hidden = false;

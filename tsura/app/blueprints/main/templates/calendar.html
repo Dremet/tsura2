@@ -21,23 +21,23 @@
   {% if admin_servers %}<a class="btn btn-outline-light calendar-edit" href="{{ url_for('admin.calendar') }}">Edit calendar</a>{% endif %}
 </section>
 
-<nav class="calendar-view-switch mb-4" aria-label="Calendar display">
-  <a class="calendar-view-link{{ ' is-active' if view == 'month' else '' }}" href="{{ month_link }}"{% if view == 'month' %} aria-current="page"{% endif %}>Month view</a>
-  <a class="calendar-view-link{{ ' is-active' if view == 'week' else '' }}" href="{{ week_link }}"{% if view == 'week' %} aria-current="page"{% endif %}>Week view</a>
-  <a class="calendar-view-link{{ ' is-active' if view == 'list' else '' }}" href="{{ url_for('main.calendar', view='list', month=selected_month.strftime('%Y-%m')) }}"{% if view == 'list' %} aria-current="page"{% endif %}>List view</a>
+<nav class="calendar-view-switch mb-4" aria-label="Calendar display" data-calendar-focus-date="{{ focus_date.isoformat() }}" data-calendar-focus-current="{{ 'true' if focus_is_current else 'false' }}">
+  <a class="calendar-view-link{{ ' is-active' if view == 'month' else '' }}" href="{{ view_links.month }}"{% if view == 'month' %} aria-current="page"{% endif %}>Month view</a>
+  <a class="calendar-view-link{{ ' is-active' if view == 'week' else '' }}" href="{{ view_links.week }}"{% if view == 'week' %} aria-current="page"{% endif %}>Week view</a>
+  <a class="calendar-view-link{{ ' is-active' if view == 'list' else '' }}" href="{{ view_links.list }}"{% if view == 'list' %} aria-current="page"{% endif %}>List view</a>
 </nav>
 
 {% if view == 'month' %}
-<section class="calendar-section" aria-labelledby="month-heading" data-month-calendar data-month-key="{{ selected_month.strftime('%Y-%m') }}" data-month-is-current="{{ 'true' if not request.args.get('month') else 'false' }}">
+<section class="calendar-section" aria-labelledby="month-heading" data-month-calendar data-month-key="{{ selected_month.strftime('%Y-%m') }}" data-month-is-current="{{ 'true' if focus_is_current else 'false' }}">
   <div class="calendar-month-toolbar mb-3">
     <div>
       <p class="calendar-eyebrow mb-1">Race dates</p>
       <h2 id="month-heading" class="h3 mb-0">{{ selected_month.strftime('%B %Y') }}</h2>
     </div>
     <div class="calendar-month-navigation" aria-label="Browse months">
-      {% if selected_month.year > 1900 or selected_month.month > 1 %}<a class="btn btn-outline-light btn-sm" href="{{ url_for('main.calendar', view='month', month=previous_month.strftime('%Y-%m')) }}" aria-label="Previous month">← Previous</a>{% endif %}
+      {% if selected_month.year > 1900 or selected_month.month > 1 %}<a class="btn btn-outline-light btn-sm" href="{{ url_for('main.calendar', view='month', date=previous_month_focus.isoformat()) }}" aria-label="Previous month">← Previous</a>{% endif %}
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.calendar', view='month') }}" data-calendar-today>Today</a>
-      {% if selected_month.year < 2100 or selected_month.month < 12 %}<a class="btn btn-outline-light btn-sm" href="{{ url_for('main.calendar', view='month', month=next_month.strftime('%Y-%m')) }}" aria-label="Next month">Next →</a>{% endif %}
+      {% if selected_month.year < 2100 or selected_month.month < 12 %}<a class="btn btn-outline-light btn-sm" href="{{ url_for('main.calendar', view='month', date=next_month_focus.isoformat()) }}" aria-label="Next month">Next →</a>{% endif %}
     </div>
   </div>
   <div class="calendar-month-scroll" tabindex="0" aria-label="Monthly race calendar; scroll sideways on small screens">
@@ -79,16 +79,16 @@
   <div hidden data-month-overflow data-calendar-overflow>{% for event in overflow_events %}{{ grid_event(event) }}{% endfor %}</div>
 </section>
 {% elif view == 'week' %}
-<section class="calendar-section" aria-labelledby="week-heading" data-week-calendar data-week-key="{{ selected_week.isoformat() }}" data-week-is-current="{{ 'true' if not request.args.get('week') else 'false' }}">
+<section class="calendar-section" aria-labelledby="week-heading" data-week-calendar data-week-key="{{ selected_week.isoformat() }}" data-week-is-current="{{ 'true' if focus_is_current else 'false' }}">
   <div class="calendar-month-toolbar mb-3">
     <div>
       <p class="calendar-eyebrow mb-1">Race dates</p>
       <h2 id="week-heading" class="h3 mb-0">Week of {{ selected_week.strftime('%d %B %Y') }}</h2>
     </div>
     <div class="calendar-month-navigation" aria-label="Browse weeks">
-      {% if previous_week.year >= 1900 %}<a class="btn btn-outline-light btn-sm" href="{{ url_for('main.calendar', view='week', week=previous_week.isoformat()) }}" aria-label="Previous week">← Previous</a>{% endif %}
+      {% if previous_week_focus.year >= 1900 %}<a class="btn btn-outline-light btn-sm" href="{{ url_for('main.calendar', view='week', date=previous_week_focus.isoformat()) }}" aria-label="Previous week">← Previous</a>{% endif %}
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.calendar', view='week') }}" data-calendar-today>Today</a>
-      {% if next_week.year <= 2100 %}<a class="btn btn-outline-light btn-sm" href="{{ url_for('main.calendar', view='week', week=next_week.isoformat()) }}" aria-label="Next week">Next →</a>{% endif %}
+      {% if next_week_focus.year <= 2100 %}<a class="btn btn-outline-light btn-sm" href="{{ url_for('main.calendar', view='week', date=next_week_focus.isoformat()) }}" aria-label="Next week">Next →</a>{% endif %}
     </div>
   </div>
   <div class="calendar-week-grid">

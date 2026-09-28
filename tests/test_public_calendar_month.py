@@ -1,11 +1,14 @@
 """The public month view can browse both future and historical race dates."""
 
 import os
+import re
 import unittest
 from datetime import datetime, timezone
+from html import unescape
 from unittest.mock import patch
 
 from tsura.app import create_app
+from tsura.app.blueprints.main import routes as main_routes
 from tsura.app.extensions import db_pool
 
 
@@ -47,7 +50,7 @@ class PublicCalendarMonthTests(unittest.TestCase):
         }
         conn = CalendarConnection([event])
         with patch.object(db_pool, "get_conn", return_value=conn):
-            response = self.app.test_client().get("/calendar?view=month&month=2026-10")
+            response = self.app.test_client().get("/calendar?view=month&date=2026-10-01")
 
         html = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
@@ -57,8 +60,8 @@ class PublicCalendarMonthTests(unittest.TestCase):
         self.assertIn('data-month-select-day', html)
         self.assertIn('data-month-agenda', html)
         self.assertIn('data-bs-toggle="tooltip" data-bs-container="body"', html)
-        self.assertIn("view=month&amp;month=2026-09", html)
-        self.assertIn("view=month&amp;month=2026-11", html)
+        self.assertIn("view=month&amp;date=2026-09-01", html)
+        self.assertIn("view=month&amp;date=2026-11-01", html)
         self.assertEqual(len(conn.queries), 1)
         self.assertEqual(conn.queries[0][1], (
             datetime(2026, 9, 27, tzinfo=timezone.utc),
@@ -109,13 +112,55 @@ class PublicCalendarMonthTests(unittest.TestCase):
         self.assertEqual(html.count('class="calendar-week-panel"'), 3)
         self.assertEqual(html.count('data-calendar-day="'), 21)
         self.assertIn("Week three race", html)
-        self.assertIn("view=week&amp;week=2026-09-28", html)
-        self.assertIn("view=week&amp;week=2026-10-12", html)
+        self.assertIn("view=week&amp;date=2026-09-30", html)
+        self.assertIn("view=week&amp;date=2026-10-14", html)
         self.assertEqual(len(conn.queries), 1)
         self.assertEqual(conn.queries[0][1], (
             datetime(2026, 10, 4, tzinfo=timezone.utc),
             datetime(2026, 10, 27, tzinfo=timezone.utc),
         ))
+
+    @staticmethod
+    def view_link(html, view):
+        match = re.search(r'href="([^"]+)"[^>]*>' + view.capitalize() + r' view</a>', html)
+        if not match:
+            raise AssertionError(f"Missing {view} view link")
+        return unescape(match.group(1))
+
+    def test_switching_views_preserves_date_across_month_and_year_boundaries(self):
+        # These weeks start in the preceding month/year. Following real links
+        # repeatedly must retain the focus date rather than adopt that Monday.
+        for focus in ("2026-09-01", "2027-01-01", "2027-02-01"):
+            with self.subTest(focus=focus), patch.object(
+                    db_pool, "get_conn", return_value=CalendarConnection([])):
+                client = self.app.test_client()
+                html = client.get(f"/calendar?date={focus}").get_data(as_text=True)
+                for view in ("week", "list", "month", "list", "week", "month"):
+                    response = client.get(self.view_link(html, view))
+                    self.assertEqual(response.status_code, 200)
+                    html = response.get_data(as_text=True)
+                    self.assertIn(f'data-calendar-focus-date="{focus}"', html)
+                    if view == "month":
+                        self.assertIn(f'data-month-key="{focus[:7]}"', html)
+
+    def test_current_month_switches_to_current_week(self):
+        with patch.object(main_routes, "datetime", wraps=datetime) as clock, \
+                patch.object(db_pool, "get_conn", return_value=CalendarConnection([])):
+            clock.now.return_value = datetime(2026, 9, 28, 12, tzinfo=timezone.utc)
+            client = self.app.test_client()
+            html = client.get("/calendar?view=list&month=2026-09").get_data(as_text=True)
+            html = client.get(self.view_link(html, "week")).get_data(as_text=True)
+            self.assertIn('data-week-key="2026-09-28"', html)
+            html = client.get(self.view_link(html, "month")).get_data(as_text=True)
+            self.assertIn('data-month-key="2026-09"', html)
+
+    def test_legacy_month_link_does_not_drift_via_week_and_list(self):
+        with patch.object(db_pool, "get_conn", return_value=CalendarConnection([])):
+            client = self.app.test_client()
+            html = client.get("/calendar?month=2027-01").get_data(as_text=True)
+            for view in ("week", "list", "month"):
+                html = client.get(self.view_link(html, view)).get_data(as_text=True)
+            self.assertIn('data-month-key="2027-01"', html)
 
     def test_month_view_is_default_and_marks_today(self):
         conn = CalendarConnection([])

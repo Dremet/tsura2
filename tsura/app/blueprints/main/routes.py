@@ -376,22 +376,28 @@ def calendar():
     requested_view = request.args.get("view")
     view = requested_view if requested_view in ("list", "week") else "month"
     today_utc = datetime.now(timezone.utc).date()
-    week_value = request.args.get("week", "")
-    try:
-        week_anchor = date.fromisoformat(week_value)
-        if not 1900 <= week_anchor.year <= 2100:
-            raise ValueError
-    except ValueError:
-        week_anchor = today_utc
-    selected_week = week_anchor - timedelta(days=week_anchor.weekday())
-
-    month_value = request.args.get("month", "")
-    try:
-        selected_month = datetime.strptime(month_value, "%Y-%m").date()
-        if not 1900 <= selected_month.year <= 2100:
-            raise ValueError
-    except ValueError:
-        selected_month = (selected_week if view == "week" else today_utc).replace(day=1)
+    # Keep the actual focus day when changing views. A week can start in the
+    # previous month, so its Monday must not become the focus day on a switch.
+    focus_date = None
+    candidates = [(request.args.get("date", ""), "%Y-%m-%d")]
+    if view == "week":
+        candidates.append((request.args.get("week", ""), "%Y-%m-%d"))
+    candidates.append((request.args.get("month", ""), "%Y-%m"))
+    for value, format_string in candidates:
+        try:
+            candidate = datetime.strptime(value, format_string).date()
+            if not 1900 <= candidate.year <= 2100:
+                continue
+        except ValueError:
+            continue
+        if format_string == "%Y-%m" and candidate == today_utc.replace(day=1):
+            candidate = today_utc
+        focus_date = candidate
+        break
+    focus_is_current = focus_date is None
+    focus_date = focus_date or today_utc
+    selected_week = focus_date - timedelta(days=focus_date.weekday())
+    selected_month = focus_date.replace(day=1)
 
     month_weeks = calendar_module.Calendar(firstweekday=0).monthdatescalendar(
         selected_month.year, selected_month.month)
@@ -399,24 +405,20 @@ def calendar():
     month_end = month_weeks[-1][-1] + timedelta(days=1)
     previous_month = (selected_month - timedelta(days=1)).replace(day=1)
     next_month = month_end.replace(day=1)
-    week_switch = selected_month - timedelta(days=selected_month.weekday())
+    previous_month_focus = previous_month.replace(day=min(
+        focus_date.day, calendar_module.monthrange(previous_month.year, previous_month.month)[1]))
+    next_month_focus = next_month.replace(day=min(
+        focus_date.day, calendar_module.monthrange(next_month.year, next_month.month)[1]))
     week_days = [
         [selected_week + timedelta(days=week * 7 + day) for day in range(7)]
         for week in range(3)
     ]
-    previous_week = selected_week - timedelta(weeks=1)
-    next_week = selected_week + timedelta(weeks=1)
-    if week_value and view == "week":
-        week_link = url_for("main.calendar", view="week", week=selected_week.isoformat())
-    elif month_value:
-        week_link = url_for("main.calendar", view="week", week=week_switch.isoformat())
-    else:
-        week_link = url_for("main.calendar", view="week")
-    month_link = (
-        url_for("main.calendar", view="month", month=selected_month.strftime("%Y-%m"))
-        if month_value or (view == "week" and week_value)
-        else url_for("main.calendar")
-    )
+    previous_week_focus = focus_date - timedelta(weeks=1)
+    next_week_focus = focus_date + timedelta(weeks=1)
+    view_links = {
+        target: url_for("main.calendar", view=target, date=focus_date.isoformat())
+        for target in ("month", "week", "list")
+    }
 
     with db_pool.get_conn().cursor(row_factory=psycopg.rows.dict_row) as cur:
         if view == "month":
@@ -448,9 +450,10 @@ def calendar():
         recent_events=recent_events, grid_events_by_day=grid_events_by_day,
         overflow_events=overflow_events, month_weeks=month_weeks,
         week_days=week_days, selected_week=selected_week,
-        previous_week=previous_week, next_week=next_week,
-        selected_month=selected_month, week_link=week_link, month_link=month_link,
-        previous_month=previous_month, next_month=next_month,
+        previous_week_focus=previous_week_focus, next_week_focus=next_week_focus,
+        selected_month=selected_month, view_links=view_links,
+        focus_date=focus_date, focus_is_current=focus_is_current,
+        previous_month_focus=previous_month_focus, next_month_focus=next_month_focus,
         today_utc=today_utc, utc=timezone.utc,
     )
 
