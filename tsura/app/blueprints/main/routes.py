@@ -191,7 +191,7 @@ SERVER_NAME_KEYS = {
     "#1 Event Server": "events",
     "#2 Hotlapping": "hotlapping",
     "#3 TripleHeat": "tripleheat",
-    "Casual Wed Heat": "casual_heat",
+    "TSU Fun Modes": "fun",
     "TSURA Career": "career",
     "Topdown Racing": "topdown",
 }
@@ -328,7 +328,6 @@ def index():
 
         summary_events = _last_day_summary(cur, "events")
         summary_heats  = _last_day_summary(cur, "tripleheat")
-        summary_casual = _last_day_summary(cur, "casual_heat")
         summary_career = _last_day_summary(cur, "career")
         summary_topdown = _last_day_summary(cur, "topdown")
 
@@ -364,7 +363,6 @@ def index():
         utc=timezone.utc,
         summary_events=summary_events,
         summary_heats=summary_heats,
-        summary_casual=summary_casual,
         summary_career=summary_career,
         summary_topdown=summary_topdown,
     )

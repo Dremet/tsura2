@@ -2,7 +2,7 @@
 
 Per-server panel access is granted via webadmin.server_admins (migration
 015). The site owner always has access to everything and is the only one
-who may edit admin rights. The TripleHeat / Casual Heat / Hotlapping panels
+who may edit admin rights. The TripleHeat / Hotlapping / TopDown panels
 read and write the JSON files under /srv/tsura/server_config/ which the
 game-server scripts consume (create_autorun.py / run_event_init.py /
 apply_web_config.py) — every value falls back to the scripts' built-in
@@ -46,12 +46,6 @@ SERVERS = {
         "description": "Car list, track pool and quali/race parameters "
                        "for the Friday sessions.",
     },
-    "casual_heat": {
-        "label": "Casual Heat",
-        "color": "#0d6efd",
-        "description": "Car pool, track pool and quali/race parameters "
-                       "for the Wednesday sessions.",
-    },
     "hotlapping": {
         "label": "Hotlapping",
         "color": "#20c997",
@@ -70,23 +64,30 @@ SERVERS = {
         "description": "Track and car pool, laps, bots and cameras for the "
                        "automatic top-down heats.",
     },
+    "fun": {
+        "label": "Fun Modes",
+        "color": "#d63384",
+        "description": "Upload cars and tracks, send in-game commands and "
+                       "restart the manually hosted Sumo / Capture the Flag "
+                       "server.",
+    },
 }
 
 # Unix account behind each game server.
 SERVER_UNIX_USER = {
     "tripleheat": "tripleheat",
-    "casual_heat": "heat",
     "hotlapping": "hotlapping",
     "events": "events",
     "career": "career",
     "topdown": "topdown",
+    "fun": "fun",
 }
 
 # Where each game server lives on disk (uploads go to server/config/<subdir>).
 SERVER_HOME = {s: f"/home/{u}" for s, u in SERVER_UNIX_USER.items()}
 
 # Servers that take file uploads via the panel (career cars are generated).
-UPLOAD_SERVERS = ("tripleheat", "casual_heat", "hotlapping", "events", "topdown")
+UPLOAD_SERVERS = ("tripleheat", "hotlapping", "events", "topdown", "fun")
 
 # Server-control actions -> script in the game user's home (run via a
 # narrow sudoers rule in /etc/sudoers.d/tsura-server-admin).
@@ -95,10 +96,10 @@ ACTION_LOG_DIR = "/srv/tsura/server_config/logs"
 
 PANEL_ENDPOINT = {
     "tripleheat": "admin.tripleheat",
-    "casual_heat": "admin.casual_heat",
     "hotlapping": "admin.hotlapping",
     "events": "admin.events",
     "topdown": "admin.topdown",
+    "fun": "admin.fun",
 }
 
 UPLOAD_KINDS = {
@@ -343,9 +344,6 @@ PARAM_SKIP_PREFIXES = ()
 RANDOMIZED_PATHS = {
     "tripleheat": {"race.maxLaps", "fuel.fuelFullGasTime",
                    "tireWear.compound1Endurance"},
-    "casual_heat": {"fuel.fuelFullGasTime", "tireWear.tireCompoundCount",
-                    "tireWear.compound1Endurance",
-                    "tireWear.compound2Endurance"},
 }
 
 
@@ -373,14 +371,6 @@ SCRIPT_EVENT_DEFAULTS = {
                  "drafting.draftingDownforceReduction": 12,
                  "drafting.draftingForMaximumEffect": 90,
                  "drafting.draftingAttenuationPower": 1.5,
-                 **_points_defaults([20, 16, 13, 10, 8, 6, 4, 3, 2, 1])},
-    },
-    "casual_heat": {
-        "quali": {"race.maxLaps": 2, "race.maxMinutes": 5,
-                  "fuel.fuelOn": 0, "tireWear.tireWearOn": 0,
-                  **_points_defaults([3, 2, 1])},
-        "race": {"race.maxLaps": 500, "race.maxMinutes": 8,
-                 "fuel.fuelOn": 1, "tireWear.tireWearOn": 1,
                  **_points_defaults([20, 16, 13, 10, 8, 6, 4, 3, 2, 1])},
     },
 }
@@ -625,7 +615,7 @@ def _sync_ingame_admins() -> None:
             _save_config(server, cfg)
         except OSError:
             continue
-        if server in ("tripleheat", "casual_heat", "events"):
+        if server in ("tripleheat", "events", "fun"):
             _apply_ingame_admins_now(server, admins)
 
 
@@ -1198,10 +1188,10 @@ def index():
     links = {
         "career": url_for("career.admin"),
         "tripleheat": url_for("admin.tripleheat"),
-        "casual_heat": url_for("admin.casual_heat"),
         "hotlapping": url_for("admin.hotlapping"),
         "events": url_for("admin.events"),
         "topdown": url_for("admin.topdown"),
+        "fun": url_for("admin.fun"),
     }
     # who is admin where (shown to every admin; owner is implicit everywhere)
     overview = {s: [] for s in SERVERS}
@@ -1228,10 +1218,10 @@ def index():
 
 
 def _heat_panel(server: str):
-    """Shared panel logic for TripleHeat and Casual Heat."""
+    """Panel logic for TripleHeat (Casual Heat was retired 2026-10-08)."""
     meta = SERVERS[server]
     owner = is_owner(g.get("current_steam_id"))
-    endpoint = "admin.tripleheat" if server == "tripleheat" else "admin.casual_heat"
+    endpoint = "admin.tripleheat"
 
     if request.method == "POST":
         if not _csrf_ok():
@@ -1239,26 +1229,18 @@ def _heat_panel(server: str):
         cfg = _load_config(server)
         try:
             old_tracks = [t for t, _w in cfg.get("tracks", [])]
-            old_cars = (cfg.get("vehicles", []) if server == "tripleheat"
-                        else [c for c, _w in cfg.get("cars", [])])
+            old_cars = cfg.get("vehicles", [])
             cfg["number_tracks"] = _form_int("number_tracks", "Tracks per session", 1, 20)
             cfg["tracks"] = _parse_weighted(request.form.get("tracks", ""), "Tracks")
-            if server == "tripleheat":
-                cfg["vehicles"] = _parse_names(request.form.get("vehicles", ""), "Cars")
-                new_cars = cfg["vehicles"]
-            else:
-                cfg["cars"] = _parse_weighted(request.form.get("cars", ""), "Cars")
-                new_cars = [c for c, _w in cfg["cars"]]
+            cfg["vehicles"] = _parse_names(request.form.get("vehicles", ""), "Cars")
+            new_cars = cfg["vehicles"]
             _check_content_names("track", [t for t, _w in cfg["tracks"]],
                                  server, extra_known=old_tracks)
             _check_content_names("vehicle", new_cars, server, extra_known=old_cars)
             # top section = only the values that get randomized per race;
             # everything else lives in the advanced params (diff-based)
             race = {}
-            if server == "tripleheat":
-                race["laps_min"], race["laps_max"] = _form_range("laps", "Race laps", 1, 1000)
-            else:
-                race["max_compounds"] = _form_int("max_compounds", "Max tire compounds", 1, 2)
+            race["laps_min"], race["laps_max"] = _form_range("laps", "Race laps", 1, 1000)
             race["fuel_min"], race["fuel_max"] = _form_range("fuel", "Fuel (full-gas time)", 1, 100000)
             race["tires_min"], race["tires_max"] = _form_range("tires", "Tire endurance", 1, 100000)
             base = {p: d for _sec, fields in _event_param_specs(server)
@@ -1292,8 +1274,8 @@ def _heat_panel(server: str):
         endpoint=endpoint,
         cfg=cfg,
         tracks_text=_fmt_weighted(cfg.get("tracks", [])),
-        cars_text=_fmt_weighted(cfg.get("cars", [])) if server == "casual_heat" else "",
-        vehicles_text="\n".join(cfg.get("vehicles", [])) if server == "tripleheat" else "",
+        cars_text="",
+        vehicles_text="\n".join(cfg.get("vehicles", [])),
         is_owner=owner,
         track_options=_known_tracks(server),
         vehicle_options=_known_vehicles(server),
@@ -1313,12 +1295,6 @@ def _heat_panel(server: str):
 @_server_admin_required("tripleheat")
 def tripleheat():
     return _heat_panel("tripleheat")
-
-
-@admin_bp.route("/casual-heat", methods=["GET", "POST"])
-@_server_admin_required("casual_heat")
-def casual_heat():
-    return _heat_panel("casual_heat")
 
 
 @admin_bp.route("/hotlapping", methods=["GET", "POST"])
@@ -1496,6 +1472,76 @@ def events_push():
     return redirect(url_for("admin.events"))
 
 
+@admin_bp.route("/fun")
+@_server_admin_required("fun")
+def fun():
+    """Fun Modes (Sumo, Capture the Flag, ...): deliberately minimal.
+
+    The server is hosted by hand in-game, so the panel only gets files onto
+    it, sends raw console commands and restarts it. Results are archived by
+    the server itself (see tsura_server_scripts/fun) but not shown anywhere.
+    """
+    return render_template(
+        "admin/fun.html",
+        meta=SERVERS["fun"],
+        **_upload_context("fun"),
+        **_control_context("fun"),
+    )
+
+
+@admin_bp.route("/fun/push", methods=["POST"])
+@_server_admin_required("fun")
+def fun_push():
+    """Send raw console commands to the running Fun Modes server."""
+    if not _csrf_ok():
+        abort(400)
+    commands, errors = [], []
+    for ln, line in enumerate(request.form.get("raw_commands", "").splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        if not line.startswith("/"):
+            errors.append(f"Line {ln}: must start with /")
+            continue
+        commands.append(line)
+    if errors:
+        for e in errors:
+            flash(e, "danger")
+        return redirect(url_for("admin.fun"))
+    if not commands:
+        flash("Nothing to send — the box was empty.", "warning")
+        return redirect(url_for("admin.fun"))
+    if not _server_running("fun"):
+        flash("The Fun Modes server is offline — nothing was sent.", "danger")
+        return redirect(url_for("admin.fun"))
+    scripts_dir = os.path.join(SERVER_HOME["fun"], "server", "config", "Scripts")
+    autorun = os.path.join(scripts_dir, "autorun.src")
+    if os.path.exists(autorun):
+        flash("The server is busy with another script — try again in a "
+              "few seconds.", "warning")
+        return redirect(url_for("admin.fun"))
+    try:
+        fd, tmp = tempfile.mkstemp(dir=scripts_dir, prefix=".push.")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("\n".join(commands) + "\n")
+        os.chmod(tmp, 0o664)
+        os.replace(tmp, autorun)
+    except OSError as exc:
+        flash(f"Could not send commands: {exc}", "danger")
+        return redirect(url_for("admin.fun"))
+    try:
+        log_path = os.path.join(ACTION_LOG_DIR, "fun.log")
+        with open(log_path, "a") as lf:
+            lf.write(f"\n=== {datetime.now():%Y-%m-%d %H:%M:%S} command push "
+                     f"by {g.current_steam_id}\n")
+            lf.write("\n".join(commands) + "\n")
+        os.chmod(log_path, 0o664)
+    except OSError:
+        pass
+    flash(f"Sent {len(commands)} command(s) to the Fun Modes server.", "success")
+    return redirect(url_for("admin.fun"))
+
+
 @admin_bp.route("/<server>/apply", methods=["POST"])
 def apply_session(server):
     """'Apply now': request a fresh session with the saved config.
@@ -1505,7 +1551,7 @@ def apply_session(server):
     content files are newer than the running process, then triggers the
     normal session-start flow (incl. /refreshfiles at session init).
     """
-    if server not in ("tripleheat", "casual_heat"):
+    if server != "tripleheat":
         abort(404)
     if not is_server_admin(g.get("current_steam_id"), server):
         abort(403)

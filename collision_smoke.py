@@ -27,7 +27,6 @@ except ImportError:
 
 OWNER = routes.OWNER_STEAM_ID
 PANELS = [("tripleheat", "/admin/tripleheat", routes.tripleheat),
-          ("casual_heat", "/admin/casual-heat", routes.casual_heat),
           ("hotlapping", "/admin/hotlapping", routes.hotlapping),
           ("topdown", "/admin/topdown", routes.topdown)]
 

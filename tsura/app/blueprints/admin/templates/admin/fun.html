@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Fun Modes Admin — TSURA{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">Admin</a></li>
+    <li class="breadcrumb-item active">Fun Modes</li>
+  </ol>
+</nav>
+
+<h1 class="mb-2" style="color: {{ meta.color }};">Fun Modes</h1>
+<p class="text-secondary mb-4">
+  Sumo, Capture the Flag and friends. The server is hosted by hand in-game —
+  this panel only gets files onto it, sends console commands and restarts it.
+  Results are collected by the server but not shown on the website (yet).
+</p>
+
+{% include "admin/_uploads.html" %}
+
+<div class="card bg-dark border-secondary mt-4" style="max-width: 900px;">
+  <div class="card-header">Send console commands to the running server</div>
+  <div class="card-body">
+    <p class="text-secondary">
+      One command per line, each starting with <code>/</code> — anything the
+      in-game console accepts. This is a one-time push; in-game changes made
+      afterwards stay in effect.
+    </p>
+    <form method="post" action="{{ url_for('admin.fun_push') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <textarea class="form-control font-monospace" name="raw_commands" rows="4"
+                spellcheck="false" placeholder="/broadcast Round starts in 1 minute"></textarea>
+      <button class="btn btn-warm-red mt-3" type="submit">Send to server</button>
+    </form>
+  </div>
+</div>
+
+{% include "admin/_server_control.html" %}
+{% endblock %}

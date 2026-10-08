@@ -23,7 +23,7 @@ from tsura.app.blueprints.admin.content_files import (        # noqa: E402
     ContentFileError, read_content_file)
 from flask import g                                           # noqa: E402
 
-SERVERS = ("topdown", "tripleheat", "casual_heat", "hotlapping", "events")
+SERVERS = ("topdown", "tripleheat", "hotlapping", "events", "fun")
 
 
 def ground_truth():

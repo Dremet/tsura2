@@ -41,7 +41,8 @@ Use `dict_row` row factory so rows come back as dicts.
 **Server labels in DB (important):**
 - `server='events'` — Liga-Event server
 - `server='heats'` — Tripleheat (TEMPORARY: to be renamed 'tripleheat' next session)
-- `server='casual_heat'` — Casual-Heat (TEMPORARY: most data still mislabeled as 'heats')
+- `server='casual_heat'` — Casual-Heat (server retired 2026-10-08; history stays visible, no new data)
+- Fun Modes server (user `fun`, admin key `fun`): results are only archived under `/home/data/fun/archive`, not loaded into the DB or shown on the site
 - `server='hotlapping'` — dedicated hotlap server
 
 **Environment variables:**
